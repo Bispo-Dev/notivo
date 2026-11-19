@@ -1,0 +1,6 @@
+// Cloudflare Workers serves the static download page in site/ (no Worker code).
+{
+  "name": "notivo",
+  "compatibility_date": "2026-11-01",
+  "assets": { "directory": "./site" }
+}

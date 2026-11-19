@@ -4,7 +4,7 @@ O Notivo é publicado em duas partes, ambas gratuitas:
 
 | Parte | Onde | Endereço |
 |-------|------|----------|
-| Página de download (`site/`) | Cloudflare Pages | `https://notivo.pages.dev` (ou domínio próprio) |
+| Página de download (`site/`) | Cloudflare Workers | `https://notivo.<conta>.workers.dev` (ou domínio próprio) |
 | APK | GitHub Releases | `https://github.com/Bispo-Dev/notivo/releases/latest/download/notivo.apk` |
 
 O site sempre aponta para `releases/latest/download/notivo.apk`, então publicar uma versão nova não exige mexer no site, exceto no número da versão exibido.
@@ -13,12 +13,12 @@ O site sempre aponta para `releases/latest/download/notivo.apk`, então publicar
 
 1. **Repositório público.** O download das Releases só funciona sem login se o repositório for público. Se o código precisar ficar privado, crie um repositório público só para as Releases e troque o link em `site/index.html` (dois lugares).
 2. **Chave de assinatura.** `app/android/key.properties` (fora do git) aponta para o keystore com `storeFile`, `storePassword`, `keyAlias` e `keyPassword`. Faça backup do keystore e das senhas fora do computador: sem a mesma chave, quem já instalou não consegue atualizar. Se o app também for para a Play Store, use essa mesma chave como chave de upload e decida a assinatura antes de distribuir o primeiro APK.
-3. **Cloudflare Pages** (uma vez):
-   1. Painel da Cloudflare › *Workers & Pages* › *Create* › *Pages* › *Connect to Git*.
+3. **Cloudflare Workers** (uma vez; o `wrangler.jsonc` da raiz publica a pasta `site/` como site estático):
+   1. Painel da Cloudflare › *Workers & Pages* › *Create* › *Import a repository*.
    2. Escolha o repositório e a branch `main`.
-   3. *Framework preset*: `None`. *Build command*: vazio. *Build output directory*: `site`.
-   4. *Save and Deploy*. Daí em diante, cada push na `main` publica o site sozinho.
-   5. Domínio próprio (opcional): *Custom domains* no projeto do Pages.
+   3. *Build command*: vazio. *Deploy command*: `npx wrangler deploy`. *API token*: deixe a Cloudflare criar um novo.
+   4. *Deploy*. Daí em diante, cada push na `main` publica o site sozinho.
+   5. Domínio próprio (opcional): *Settings* › *Domains & Routes* › *Custom domain*. O domínio precisa estar com o DNS na Cloudflare.
 
 ## Publicar uma versão
 

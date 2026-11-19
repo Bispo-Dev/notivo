@@ -19,3 +19,6 @@ app/android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
 app/android/key.properties
 *.jks
 *.keystore
+
+# Wrangler local state
+.wrangler/
