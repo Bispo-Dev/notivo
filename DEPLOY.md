@@ -23,7 +23,7 @@ O site sempre aponta para `releases/latest/download/notivo.apk`, então publicar
 ## Publicar uma versão
 
 1. **Versão.** Suba `version` em `app/pubspec.yaml`: o nome e o número depois do `+` (ex.: `1.1.0+2`). O número depois do `+` precisa sempre crescer, senão o Android recusa a atualização.
-2. **Site.** Atualize “Versão x.y.z” em `site/index.html`.
+2. **Site.** Atualize “Versão x.y.z” em `site/index.html`, no texto e no link da tag (`releases/tag/vx.y.z`).
 3. **Checagens.** Rode as ferramentas de `app/tool/` descritas em `app/README.md`.
 4. **APK.** Na raiz:
 
@@ -31,7 +31,11 @@ O site sempre aponta para `releases/latest/download/notivo.apk`, então publicar
    .\app\instalar-android.ps1 -Release
    ```
 
-   Gera `app\build\release\notivo.apk` e `notivo.apk.sha256`, assinados com a chave de release. O script para se `key.properties` não existir.
+   Gera em `app\build\release\`, assinados com a chave de release e cada um com seu `.sha256`:
+   - `notivo.apk`: arm64, praticamente todo celular e tablet atual. É o que o site oferece.
+   - `notivo-32bits.apk`: só para celulares Android 32 bits antigos. Não aparece no site; mande o link direto a quem o `notivo.apk` der "app incompatível": `https://github.com/Bispo-Dev/notivo/releases/latest/download/notivo-32bits.apk`.
+
+   O script para se `key.properties` não existir.
 5. **Teste.** Instale o `notivo.apk` num aparelho por cima da versão anterior e confira que atualiza sem perder a biblioteca.
 6. **Commit e tag.**
 
@@ -41,17 +45,17 @@ O site sempre aponta para `releases/latest/download/notivo.apk`, então publicar
    git push origin main --tags
    ```
 
-7. **Release.** No GitHub: *Releases* › *Draft a new release* › tag `v1.1.0`, título `Notivo 1.1.0`, as novidades em poucas linhas, e anexe `notivo.apk` e `notivo.apk.sha256`. O nome do arquivo precisa ser exatamente `notivo.apk`. Publique como *Latest release*.
+7. **Release.** No GitHub: *Releases* › *Draft a new release* › tag `v1.1.0`, título `Notivo 1.1.0`, as novidades em poucas linhas, e anexe os quatro arquivos de `app\build\release\` (`notivo.apk`, `notivo-32bits.apk` e os dois `.sha256`). Os nomes precisam ser exatamente esses. Publique como *Latest release*.
    Com o GitHub CLI instalado, o mesmo passo é:
 
    ```powershell
-   gh release create v1.1.0 app\build\release\notivo.apk app\build\release\notivo.apk.sha256 --title "Notivo 1.1.0" --notes "..."
+   gh release create v1.1.0 (Get-ChildItem app\build\release\notivo*) --title "Notivo 1.1.0" --notes "..."
    ```
 
 8. **Conferir.** Abra o site, toque em “Baixar o APK” e veja se baixa a versão nova.
 
 ## Limites conhecidos
 
-- O APK tem cerca de 84 MB: é universal (todas as arquiteturas) e o build release está sem R8 (veja `app/android/app/build.gradle.kts`). As Releases aceitam até 2 GB por arquivo, então não há bloqueio, só download mais pesado.
+- Não há APK para x86/x86_64 (emuladores e alguns Chromebooks). O build release está sem R8 (veja `app/android/app/build.gradle.kts`), o que deixa cada APK alguns MB maior.
 - Fora da Play Store não há atualização automática: o usuário baixa a versão nova pelo site.
 - O Android pede para liberar a instalação de fontes desconhecidas, e o Play Protect pode mostrar um aviso na primeira instalação.

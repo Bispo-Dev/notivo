@@ -1,4 +1,4 @@
-# -Release: gera o APK assinado em app\build\release\notivo.apk (com .sha256) sem instalar.
+# -Release: gera os APKs assinados em app\build\release\ (notivo.apk arm64 e notivo-32bits.apk, com .sha256) sem instalar.
 param([switch]$Release)
 $ErrorActionPreference = 'Stop'
 # The script lives in app/; the local toolchain (.tooling) stays at the repo root.
@@ -33,14 +33,18 @@ try {
         if (!(Test-Path -LiteralPath (Join-Path $notivoRoot 'app\android\key.properties'))) {
             throw 'Sem app\android\key.properties: o APK sairia assinado com a chave de debug.'
         }
-        & $notivoFlutter build apk --release
-        if ($LASTEXITCODE -ne 0) { throw 'Falha ao compilar o APK.' }
         $notivoOut = New-Item -ItemType Directory -Force (Join-Path $notivoRoot 'app\build\release')
-        $notivoRelease = Join-Path $notivoOut 'notivo.apk'
-        Copy-Item (Join-Path $notivoRoot 'app\build\app\outputs\flutter-apk\app-release.apk') $notivoRelease -Force
-        $notivoHash = (Get-FileHash $notivoRelease -Algorithm SHA256).Hash.ToLower()
-        Set-Content -Encoding ascii "$notivoRelease.sha256" "$notivoHash  notivo.apk"
-        Write-Host "Pronto: $notivoRelease"
+        # One APK per build instead of --split-per-abi, which would rewrite versionCode per ABI.
+        # notivo.apk (arm64) is what the site links; notivo-32bits.apk is only for old 32-bit phones.
+        foreach ($notivoTarget in @(@('android-arm64', 'notivo.apk'), @('android-arm', 'notivo-32bits.apk'))) {
+            & $notivoFlutter build apk --release --target-platform $notivoTarget[0]
+            if ($LASTEXITCODE -ne 0) { throw "Falha ao compilar o APK ($($notivoTarget[0]))." }
+            $notivoRelease = Join-Path $notivoOut $notivoTarget[1]
+            Copy-Item (Join-Path $notivoRoot 'app\build\app\outputs\flutter-apk\app-release.apk') $notivoRelease -Force
+            $notivoHash = (Get-FileHash $notivoRelease -Algorithm SHA256).Hash.ToLower()
+            Set-Content -Encoding ascii "$notivoRelease.sha256" "$notivoHash  $($notivoTarget[1])"
+            Write-Host "Pronto: $notivoRelease ($([math]::Round((Get-Item $notivoRelease).Length / 1MB, 1)) MB)"
+        }
         return
     }
     & $notivoFlutter build apk --debug

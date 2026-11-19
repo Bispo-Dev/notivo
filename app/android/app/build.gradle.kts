@@ -26,6 +26,15 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Flutter's plugin lists every ABI here, so plugin .so files (dartjni) ship for all of them even
+        // with --target-platform: a 32-bit phone would install the arm64 APK and crash on launch.
+        (project.findProperty("target-platform") as String?)?.let { platforms ->
+            val abis = mapOf("android-arm" to "armeabi-v7a", "android-arm64" to "arm64-v8a", "android-x64" to "x86_64")
+            ndk {
+                abiFilters.clear()
+                abiFilters += platforms.split(",").map { abis.getValue(it) }
+            }
+        }
     }
     signingConfigs {
         if (keyProperties.isNotEmpty()) {
