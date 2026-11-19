@@ -40,6 +40,10 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+            // shortcut: R8 fails here (AGP 9.1 does not extract proguard-android-optimize.txt),
+            // so release builds skip shrinking; turn it back on once AGP/Flutter fix it.
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
