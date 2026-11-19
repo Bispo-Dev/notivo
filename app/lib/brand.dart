@@ -227,3 +227,34 @@ class NotivoAppIcon extends StatelessWidget {
     ),
   );
 }
+
+/// Bispo Dev mark (assets/logos/bispo-dev.svg from the Galpão site): lime dot over a slit diamond.
+class BispoDevMark extends StatelessWidget {
+  const BispoDevMark({super.key, required this.color, this.dot = const Color(0xffC8FF4D), this.height = 18});
+  final Color color, dot;
+  final double height;
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    size: Size(height * 116 / 147, height),
+    painter: _BispoDevPainter(color, dot),
+  );
+}
+
+class _BispoDevPainter extends CustomPainter {
+  const _BispoDevPainter(this.color, this.dot);
+  final Color color, dot;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.scale(size.height / 147);
+    canvas.translate(-42, -19);
+    canvas.drawCircle(const Offset(100, 30), 11, Paint()..color = dot);
+    final diamond = Path()..addPolygon(const [Offset(100, 50), Offset(158, 108), Offset(100, 166), Offset(42, 108)], true);
+    // The 9px-wide slit from (98,110) to (132,76), as a polygon.
+    final slit = Path()..addPolygon(const [Offset(101.18, 113.18), Offset(135.18, 79.18), Offset(128.82, 72.82), Offset(94.82, 106.82)], true);
+    canvas.drawPath(Path.combine(PathOperation.difference, diamond, slit), Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(_BispoDevPainter old) => old.color != color || old.dot != dot;
+}

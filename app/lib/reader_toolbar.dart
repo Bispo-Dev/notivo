@@ -222,9 +222,9 @@ class ReaderToolbar extends StatelessWidget {
           ),
           if (compact && onPaged != null) ...[
             const Divider(height: 1),
-            for (final (value, icon, label) in [
-              (true, LucideIcons.bookOpen, 'Modo páginas'),
-              (false, LucideIcons.scrollText, 'Modo contínuo'),
+            for (final (value, icon, label, hint) in [
+              (true, LucideIcons.bookOpen, 'Modo páginas', 'Uma página por vez'),
+              (false, LucideIcons.scrollText, 'Modo contínuo', 'Role as páginas sem parar'),
             ])
               MenuItemButton(
                 leadingIcon: Icon(icon, size: 20, color: c.tx),
@@ -232,7 +232,16 @@ class ReaderToolbar extends StatelessWidget {
                     ? Icon(LucideIcons.check, size: 18, color: c.accent)
                     : null,
                 onPressed: () => onPaged!(value),
-                child: Text(tr(context, label), style: designText(15, c.tx)),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(tr(context, label), style: designText(15, c.tx)),
+                      Text(tr(context, hint), style: designText(12, c.tx2)),
+                    ],
+                  ),
+                ),
               ),
           ],
           const Divider(height: 1),

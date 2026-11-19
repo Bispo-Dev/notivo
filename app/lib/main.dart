@@ -33,10 +33,11 @@ import 'package:pdf/pdf.dart' as pdf;
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 const violet = Color(0xff6d3bd2);
 // shortcut: copied from pubspec.yaml by hand, use package_info_plus if it starts drifting.
-const appVersion = '1.0.0';
+const appVersion = '1.0.1';
 const noteColors = [
   Color(0xff000000),
   Color(0xffe53935),
@@ -1804,7 +1805,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _row(
                     c,
                     title: 'Modo de leitura ao abrir',
-                    subtitle: 'Dá para trocar a qualquer momento no leitor',
+                    subtitle: paged
+                        ? 'Uma página por vez; vire com toque nas bordas ou com o pedal. Dá para trocar no leitor.'
+                        : 'Páginas uma embaixo da outra; role com o dedo. Dá para trocar no leitor.',
                     trailing: control(
                       Segmented<bool>(
                         value: paged,
@@ -1893,6 +1896,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'O Notivo funciona offline. Suas partituras e anotações ficam só neste aparelho e nos backups que você fizer.',
                     ),
                     style: designText(13, c.tx2),
+                  ),
+                ),
+                // Same copyright and credit as the site footer.
+                const SizedBox(height: 24),
+                Divider(height: 1, color: c.line),
+                const SizedBox(height: 20),
+                Text(
+                  '© ${DateTime.now().year} Notivo. ${tr(context, 'Todos os direitos reservados.')}',
+                  textAlign: TextAlign.center,
+                  style: designText(13, c.tx2),
+                ),
+                const SizedBox(height: 8),
+                MergeSemantics(
+                  child: Semantics(
+                    link: true,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () => launchUrl(
+                        Uri.parse('https://bispo.dev.br'),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 48),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(tr(context, 'Desenvolvido por'), style: designText(13, c.tx2)),
+                            const SizedBox(width: 8),
+                            // The brand lime vanishes on white, so in light mode the dot takes the diamond's color.
+                            BispoDevMark(color: c.tx, dot: c.dark ? const Color(0xffC8FF4D) : c.tx),
+                            const SizedBox(width: 6),
+                            Text('Bispo Dev', style: designText(13, c.tx, weight: FontWeight.w800)),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],
