@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const source = 'docs/notivo-manual-de-marca/notivo-icone-app-principal.svg';
+const source = 'app/docs/notivo-manual-de-marca/notivo-icone-app-principal.svg';
 const svg = fs.readFileSync(path.join(root, source), 'utf8');
 const attrs = (tag) => Object.fromEntries([...tag.matchAll(/([\w:-]+)="([^"]*)"/g)].map((m) => [m[1], m[2]]));
 const rect = attrs(svg.match(/<rect\b[^>]*>/)[0]);

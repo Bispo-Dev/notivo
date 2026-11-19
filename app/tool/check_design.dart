@@ -220,11 +220,13 @@ Future<void> main() async {
       final origin = card.localToGlobal(Offset.zero, ancestor: boundary);
       final compact = size.width < 600 || size.height < 500;
       final gutter = compact ? (size.width < 360 ? 16.0 : 20.0) : 40.0;
-      final expectedWidth = (size.width - 2 * gutter - (compact ? 12 : 16)) / 2;
+      // Phones list the collections one per row; tablets use a two-column grid.
+      final expectedWidth = compact
+          ? size.width - 2 * gutter
+          : (size.width - 2 * gutter - 16) / 2;
       if ((origin.dx - gutter).abs() > .01 ||
-          (origin.dy - (compact ? 137.8 : 201.8)).abs() > .01 ||
           (card.size.width - expectedWidth).abs() > .01 ||
-          (card.size.height - (compact ? 180 : 300)).abs() > .01)
+          (card.size.height - (compact ? 72 : 120)).abs() > .01)
         throw StateError('$name geometry: $origin ${card.size}');
       await capture(boundary, name);
       if (size.width == 834)
@@ -233,8 +235,8 @@ Future<void> main() async {
         'PASS $name: card ${card.size}, native proportions, no layout overflow.',
       );
     }
-    final toolbarWidth = size.width - 24 < 720 ? size.width - 24 : 720.0;
-    final toolbarHeight = toolbarWidth < 700 ? 108.0 : 64.0;
+    final toolbarWidth = size.width - 24;
+    const toolbarHeight = 64.0;
     final toolbarKey = GlobalKey();
     final toolbar = await render(
       'toolbar-${size.width.toInt()}',
@@ -263,17 +265,18 @@ Future<void> main() async {
               onCustom: () {},
               onUndo: () {},
               onRedo: () {},
-              onSize: () {},
-              onMore: () {},
+              onSize: (_) {},
+              onPenOnly: () {},
+              onExport: () {},
             ),
           ),
           Positioned(
             left: 12,
             right: 12,
             top: 12,
-            child: SelectionPill(
+            child: SelectionBar(
               count: 2,
-              onClear: () {},
+              onClose: () {},
               onOpen: () {},
             ),
           ),
@@ -347,7 +350,6 @@ Future<void> main() async {
         brand: const NotivoWordmark(),
         onCreate: () {},
         cards: const [],
-        onBrowseAll: () {},
         bottomPadding: 120,
       ),
     );

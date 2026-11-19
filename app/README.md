@@ -4,7 +4,7 @@ App Flutter offline: importa PDFs para o armazenamento privado, organiza partitu
 
 ## Referências visuais
 
-A composição de referência é a de um tablet em retrato, 834 × 1194. `lib/design.dart` preserva essas medidas no tablet e adapta os componentes ao espaço disponível no celular, sem diminuir a interface inteira. Os controles do leitor mantêm alvos de 44 px; sua barra usa duas linhas quando necessário. A lista rola junto com o cabeçalho para comportar o teclado e telas baixas. A pasta `docs/notivo-manual-de-marca/` é a fonte oficial da identidade. `lib/brand.dart` usa os traçados dos SVGs do símbolo e da logo horizontal, incluindo as letras em curvas vetoriais. O ícone Android é gerado do SVG principal com o transform óptico e o raio originais.
+A composição de referência é a de um tablet em retrato, 834 × 1194. `lib/design.dart` preserva essas medidas no tablet e adapta os componentes ao espaço disponível no celular, sem diminuir a interface inteira. Os controles do leitor mantêm alvos de 44 px; sua barra usa duas linhas quando necessário. A lista rola junto com o cabeçalho para comportar o teclado e telas baixas. A pasta `app/docs/notivo-manual-de-marca/` é a fonte oficial da identidade. `lib/brand.dart` usa os traçados dos SVGs do símbolo e da logo horizontal, incluindo as letras em curvas vetoriais. O ícone Android é gerado do SVG principal com o transform óptico e o raio originais.
 
 Para regenerar os recursos Android a partir do ícone oficial: `node app/tool/generate_android_icon.mjs` (na raiz). Para conferir que os traçados Flutter e Android são os SVGs oficiais: `node app/tool/check_brand_sources.mjs`.
 
@@ -12,14 +12,16 @@ Para regenerar os recursos Android a partir do ícone oficial: `node app/tool/ge
 
 ## Compilar e instalar
 
-As ações das coleções ficam no botão de três pontos; manter cards pressionados abre a barra superior para remover vários. Remover uma coleção apaga apenas seus vínculos; PDFs e anotações continuam disponíveis em “Ver partituras” quando a biblioteca está vazia. Coleções removidas não são recriadas ao reiniciar.
+A biblioteca tem busca em todas as coleções, “Abertas recentemente” (com a primeira página de cada partitura) e “Ver todas”. As ações das coleções ficam no botão de três pontos, também dentro da coleção; manter cards pressionados abre a barra de seleção embaixo para remover vários. Uma partitura que fica sem nenhuma coleção (ao remover a coleção, tirá-la da última coleção ou desmarcar todas) é apagada do Notivo com suas anotações; o PDF original escolhido na importação continua no aparelho. Antes de apagar, o app avisa quantas partituras serão apagadas. Coleções removidas não são recriadas ao reiniciar.
 
-A seleção de partituras é compartilhada entre a biblioteca e todas as coleções. Dentro de uma coleção, segurar uma partitura (ou tocar no círculo) entra no modo de seleção: toques passam a marcar, e a barra superior oferece adicionar à coleção, remover desta coleção e abrir em abas. Ao voltar para a biblioteca, a barra inferior mantém o conjunto para somar partituras de outras coleções. Remover da coleção e fechar uma aba não pedem confirmação: o aviso na parte de baixo oferece “Desfazer”. Todos os diálogos internos usam bottom sheets com conteúdo rolável e ações acima do teclado.
+O leitor tem dois modos, escolhidos em “Páginas | Contínuo” na barra (no celular, no menu ⋯): **Páginas** (toque no terço esquerdo ou direito da tela, ou pedal Bluetooth via setas, Page Up/Down, espaço ou Enter, para virar; toque no meio mostra ou esconde as barras) e **Contínuo** (rolagem e zoom livres, para partituras que continuam na página seguinte; o pedal avança uma tela, deixando a última linha visível). O pincel aparece só com Caneta ou Grifador e guarda cor e espessura de cada ferramenta. **Modo palco** esconde as barras e trava zoom, anotações e o fechamento de abas; vira-se com toque nas bordas ou pedal, nos dois modos, e para sair é preciso segurar o selo do topo por 1 segundo. Com “Desenhar só com a caneta” ligado, o dedo rola e vira páginas enquanto a caneta desenha. Desfazer/refazer agem na última edição da partitura e levam até a página dela. Em Configurações › Backup, “Fazer backup” gera um .zip com coleções, partituras e anotações, e “Restaurar backup” substitui a biblioteca pelo conteúdo do arquivo.
 
-Com a instalação local já preparada, execute na raiz em um PowerShell com permissão para iniciar processos:
+A seleção de partituras é compartilhada entre a biblioteca e todas as coleções. Dentro de uma coleção, segurar uma partitura (ou tocar no círculo) entra no modo de seleção: toques passam a marcar, e a barra de seleção embaixo oferece adicionar à coleção, remover desta coleção e abrir em abas. A mesma barra aparece na biblioteca e mantém o conjunto para somar partituras de outras coleções. Remover da coleção e fechar uma aba não pedem confirmação: o aviso na parte de baixo oferece “Desfazer”. Todos os diálogos usam o mesmo bottom sheet (`AppSheet`): título com linha de apoio, conteúdo rolável e rodapé fixo com Cancelar e a ação principal nomeada (“Salvar coleção”, “Remover e apagar 3”), em vermelho quando apaga algo. Listas de ações usam `showActionSheet`. Regra da casa: a sheet nunca passa da metade da tela (alça incluída); o que não couber rola dentro dela. No tablet, tem no máximo 560 px de largura.
+
+Com a instalação local já preparada, execute a partir da raiz em um PowerShell com permissão para iniciar processos:
 
 ```powershell
-.\instalar-android.ps1
+.\app\instalar-android.ps1
 ```
 
 Esse comando resolve as dependências, compila, instala e abre o app no Samsung conectado. A sessão restrita do agente ainda impede o Dart de iniciar o compilador e os hooks nativos; SDK e plugins já foram preparados.

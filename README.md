@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/notivo-manual-de-marca/notivo-logo-horizontal-escuro.svg">
-    <img src="docs/notivo-manual-de-marca/notivo-logo-horizontal-claro.svg" alt="Notivo" width="320">
+    <source media="(prefers-color-scheme: dark)" srcset="app/docs/notivo-manual-de-marca/notivo-logo-horizontal-escuro.svg">
+    <img src="app/docs/notivo-manual-de-marca/notivo-logo-horizontal-claro.svg" alt="Notivo" width="320">
   </picture>
 </p>
 
@@ -21,7 +21,7 @@ App Android offline para organizar, ler e anotar partituras em PDF.</p>
 - **Ordenação** por nome/número (crescente e decrescente) e por data de importação
 - **Leitura em abas** com partituras de várias coleções ao mesmo tempo
 - **Anotações por página** com caneta, grifador e borracha, salvas automaticamente
-- **Bloqueio do leitor** para tocar sem fechar abas ou sair sem querer
+- **Modo palco** para tocar sem zoom, riscos ou abas fechadas sem querer
 - **Exportação** do PDF anotado; o arquivo original nunca é alterado
 - Tema **claro e escuro**, em **português e inglês**, sem conta e sem internet
 
@@ -40,12 +40,13 @@ Os detalhes do ambiente local, da instalação no aparelho e das checagens de de
 ## Estrutura
 
 ```
-app/       código Flutter (lib/), Android, fontes e testes
-docs/      arquitetura, negócio, telas de referência e manual de marca
+app/       app Flutter: código (lib/), Android, fontes, testes, docs/ e o script de instalação
+site/      página de download do APK (HTML estático, mobile first)
 ```
 
 ## Documentação
 
-- [Arquitetura técnica](docs/notivo-arquitetura.md)
-- [Visão de negócio](docs/notivo-negocio.md)
-- [Manual de marca](docs/notivo-manual-de-marca/notivo-manual-de-marca.html)
+- [Arquitetura técnica](app/docs/notivo-arquitetura.md)
+- [Visão de negócio](app/docs/notivo-negocio.md)
+- [Manual de marca](app/docs/notivo-manual-de-marca/notivo-manual-de-marca.html)
+- [Deploy (site e APK)](DEPLOY.md)

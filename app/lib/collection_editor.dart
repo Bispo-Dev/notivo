@@ -25,7 +25,6 @@ const collectionIcons = <String, IconData>{
   'radio': LucideIcons.radio,
   'speaker': LucideIcons.speaker,
   'church': LucideIcons.church,
-  'cross': LucideIcons.cross,
   'hand-heart': LucideIcons.handHeart,
   'book-open': LucideIcons.bookOpen,
   'library': LucideIcons.library,
@@ -48,7 +47,6 @@ const collectionIcons = <String, IconData>{
 };
 
 const _palette = [
-  Colors.white,
   Color(0xff000000),
   Color(0xff2e1a6b),
   Color(0xff6d3bd2),
@@ -59,6 +57,11 @@ const _palette = [
   Color(0xff22a559),
   Color(0xff2196f3),
 ];
+
+/// Icon color that stays readable on [background]: deep violet on light colors, white on dark.
+Color iconOn(Color background) => background.computeLuminance() > .45
+    ? const Color(0xff2e1a6b)
+    : Colors.white;
 
 IconData collectionIcon(String key) =>
     collectionIcons[key] ?? LucideIcons.music;
@@ -75,26 +78,29 @@ class CollectionEditor extends StatefulWidget {
   const CollectionEditor({
     super.key,
     required this.title,
+    required this.action,
     this.name = '',
     this.icon = 'music',
     this.color = const Color(0xff6d3bd2),
-    this.iconColor = Colors.white,
   });
-  final String title, name, icon;
-  final Color color, iconColor;
+  final String title, action, name, icon;
+  final Color color;
   @override
   State<CollectionEditor> createState() => _CollectionEditorState();
 }
 
 class _CollectionEditorState extends State<CollectionEditor> {
   late final name = TextEditingController(text: widget.name);
+  final nameFocus = FocusNode();
+  // Set when saving with a blank name; cleared as soon as one is typed.
+  bool nameMissing = false;
   late var icon = widget.icon;
   late var color = widget.color;
-  late var iconColor = widget.iconColor;
 
   @override
   void dispose() {
     name.dispose();
+    nameFocus.dispose();
     super.dispose();
   }
 
@@ -168,12 +174,16 @@ class _CollectionEditorState extends State<CollectionEditor> {
 
   void _save() {
     final text = name.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty) {
+      setState(() => nameMissing = true);
+      nameFocus.requestFocus();
+      return;
+    }
     Navigator.pop<CollectionDraft>(context, (
       name: text,
       icon: icon,
       color: color,
-      iconColor: iconColor,
+      iconColor: iconOn(color),
     ));
   }
 
@@ -181,38 +191,47 @@ class _CollectionEditorState extends State<CollectionEditor> {
   Widget build(BuildContext context) {
     final c = NotivoColors(context);
     return AppSheet(
-      title: widget.title,
+      // Live title: the typed name, or the default while it is blank.
+      title: name.text.trim().isEmpty ? widget.title : name.text.trim(),
+      leading: Semantics(
+        label: tr(context, 'Pré-visualização'),
+        child: Container(
+          width: 56,
+          height: 56,
+          // The glyph always sits in the middle of the circle.
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(color: c.line),
+          ),
+          child: Icon(collectionIcon(icon), size: 26, color: iconOn(color)),
+        ),
+      ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: Text(tr(context, 'Cancelar')),
         ),
-        FilledButton(onPressed: _save, child: Text(tr(context, 'Concluir'))),
+        SheetPrimary(widget.action, onPressed: _save),
       ],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(
-            child: Semantics(
-              label: tr(context, 'Pré-visualização'),
-              child: Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: c.line),
-                ),
-                child: Icon(collectionIcon(icon), size: 32, color: iconColor),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
           TextField(
             controller: name,
+            focusNode: nameFocus,
             maxLength: 40,
             textCapitalization: TextCapitalization.sentences,
-            decoration: InputDecoration(labelText: tr(context, 'Nome')),
+            decoration: InputDecoration(
+              labelText: tr(context, 'Nome'),
+              errorText: nameMissing
+                  ? tr(context, 'Dê um nome à coleção')
+                  : null,
+            ),
+            onChanged: (value) => setState(() {
+              if (value.trim().isNotEmpty) nameMissing = false;
+            }),
             onSubmitted: (_) => _save(),
           ),
           const SizedBox(height: 8),
@@ -222,50 +241,58 @@ class _CollectionEditorState extends State<CollectionEditor> {
           ),
           const SizedBox(height: 8),
           // Tiles keep a similar size on phones and tablets.
-          GridView.extent(
-            maxCrossAxisExtent: 64,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
-            children: [
-              for (final entry in collectionIcons.entries)
-                Semantics(
-                  button: true,
-                  selected: entry.key == icon,
-                  label: entry.key,
-                  child: Material(
-                    color: entry.key == icon ? c.active : c.soft,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(
-                        color: entry.key == icon
-                            ? c.accent
-                            : Colors.transparent,
-                        width: 2,
+          // Same tile size as a 64 px grid, but an incomplete last row stays centered.
+          LayoutBuilder(
+            builder: (context, bounds) {
+              final perRow = ((bounds.maxWidth + 8) / 72).ceil();
+              // The half pixel keeps rounding from pushing the last tile to a new row.
+              final tile = (bounds.maxWidth - 8 * (perRow - 1)) / perRow - .5;
+              return Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final entry in collectionIcons.entries)
+                    SizedBox.square(
+                      dimension: tile,
+                      child: Semantics(
+                        button: true,
+                        selected: entry.key == icon,
+                        label: entry.key,
+                        child: Material(
+                          color: entry.key == icon ? c.active : c.soft,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(
+                              color: entry.key == icon
+                                  ? c.accent
+                                  : Colors.transparent,
+                              width: 2,
+                            ),
+                          ),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => setState(() => icon = entry.key),
+                            child: Icon(
+                              entry.value,
+                              size: 22,
+                              color: entry.key == icon ? c.accent : c.tx,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () => setState(() => icon = entry.key),
-                      child: Icon(
-                        entry.value,
-                        size: 22,
-                        color: entry.key == icon ? c.accent : c.tx,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
+                ],
+              );
+            },
           ),
           const SizedBox(height: 20),
-          _colors(
-            'Cor do ícone',
-            iconColor,
-            (v) => setState(() => iconColor = v),
+          _colors('Cor', color, (v) => setState(() => color = v)),
+          const SizedBox(height: 6),
+          Text(
+            tr(context, 'A cor do ícone se ajusta sozinha para ficar legível.'),
+            style: designText(12, c.tx2),
           ),
-          const SizedBox(height: 20),
-          _colors('Cor de fundo', color, (v) => setState(() => color = v)),
         ],
       ),
     );

@@ -1,5 +1,8 @@
+# -Release: gera o APK assinado em app\build\release\notivo.apk (com .sha256) sem instalar.
+param([switch]$Release)
 $ErrorActionPreference = 'Stop'
-$notivoRoot = $PSScriptRoot
+# The script lives in app/; the local toolchain (.tooling) stays at the repo root.
+$notivoRoot = Split-Path -Parent $PSScriptRoot
 $notivoTooling = Join-Path $notivoRoot '.tooling'
 $env:JAVA_HOME = Join-Path $notivoTooling 'jdk'
 $env:ANDROID_HOME = Join-Path $notivoTooling 'android-sdk'
@@ -26,6 +29,20 @@ Push-Location (Join-Path $notivoRoot 'app')
 try {
     & $notivoFlutter pub get
     if ($LASTEXITCODE -ne 0) { throw 'Falha ao resolver dependências.' }
+    if ($Release) {
+        if (!(Test-Path -LiteralPath (Join-Path $notivoRoot 'app\android\key.properties'))) {
+            throw 'Sem app\android\key.properties: o APK sairia assinado com a chave de debug.'
+        }
+        & $notivoFlutter build apk --release
+        if ($LASTEXITCODE -ne 0) { throw 'Falha ao compilar o APK.' }
+        $notivoOut = New-Item -ItemType Directory -Force (Join-Path $notivoRoot 'app\build\release')
+        $notivoRelease = Join-Path $notivoOut 'notivo.apk'
+        Copy-Item (Join-Path $notivoRoot 'app\build\app\outputs\flutter-apk\app-release.apk') $notivoRelease -Force
+        $notivoHash = (Get-FileHash $notivoRelease -Algorithm SHA256).Hash.ToLower()
+        Set-Content -Encoding ascii "$notivoRelease.sha256" "$notivoHash  notivo.apk"
+        Write-Host "Pronto: $notivoRelease"
+        return
+    }
     & $notivoFlutter build apk --debug
     if ($LASTEXITCODE -ne 0) { throw 'Falha ao compilar o APK.' }
     $notivoApk = Join-Path $notivoRoot 'app\build\app\outputs\flutter-apk\app-debug.apk'
