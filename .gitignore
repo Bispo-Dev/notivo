@@ -1,0 +1,16 @@
+.tooling/
+.setup-toolchain.mjs
+.setup-gradle-wrapper.mjs
+.setup-platform-tools.mjs
+
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/build/
+app/android/.gradle/
+app/android/.kotlin/
+app/android/local.properties
+app/android/app/build/
+app/android/app/.cxx/
+app/android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+*.iml

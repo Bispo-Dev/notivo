@@ -1,0 +1,46 @@
+name: notivo
+description: Organize, read and annotate sheet music PDFs offline.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.0
+  flutter: '>=3.47.0'
+
+dependencies:
+  file_picker: ^13.3.3
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  image: ^4.12.0
+  lucide_icons_flutter: ^4.0.3
+  path: ^1.9.1
+  path_provider: ^2.1.6
+  pdf: ^3.13.1
+  pdfrx: ^2.12.0
+  share_plus: ^13.3.1
+  sqflite: ^2.4.6
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+    - family: Source Serif 4
+      fonts:
+        - asset: assets/fonts/SourceSerif4[opsz,wght].ttf
+          weight: 400
