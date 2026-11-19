@@ -73,12 +73,6 @@ class ReaderToolbar extends StatelessWidget {
     const extent = 44.0;
     // Pen, highlighter and eraser all have a size to pick.
     final drawing = tool != 'navigate';
-    final hint = switch (tool) {
-      'navigate' when paged =>
-        'Toque nas bordas da página ou use o pedal para virar',
-      'navigate' => 'Role com o dedo; o pedal avança uma tela',
-      _ => null,
-    };
 
     final row = Row(
       mainAxisSize: MainAxisSize.min,
@@ -122,11 +116,6 @@ class ReaderToolbar extends StatelessWidget {
             onCustom: onCustom,
             onSize: onSize,
             compact: compact,
-          )
-        else if (hint != null && !compact)
-          Padding(
-            padding: const EdgeInsets.only(left: 8),
-            child: Text(tr(context, hint), style: designText(13, c.tx2)),
           ),
       ],
     );
@@ -152,12 +141,7 @@ class ReaderToolbar extends StatelessWidget {
           size: 20,
         ),
         if (onPaged != null && !compact) ...[
-          Container(
-            width: 1,
-            height: 24,
-            color: c.line,
-            margin: const EdgeInsets.symmetric(horizontal: 6),
-          ),
+          const SizedBox(width: 6),
           Segmented<bool>(
             value: paged,
             onChanged: onPaged!,

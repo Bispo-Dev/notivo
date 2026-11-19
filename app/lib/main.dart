@@ -779,11 +779,90 @@ class _NotivoAppState extends State<NotivoApp> {
 }
 
 /// Shows a plain-language message; the technical error only goes to the log.
+/// Why [error] happened, in plain Portuguese (pass it through [tr] to show it).
+String errorReason(Object error) => switch (error) {
+  PdfPasswordException() => 'O PDF está protegido por senha.',
+  PdfException() ||
+  FormatException() => 'O arquivo não é válido ou está corrompido.',
+  FileSystemException(osError: OSError(errorCode: 28)) =>
+    'Sem espaço livre no aparelho.',
+  FileSystemException(osError: OSError(errorCode: 1 || 13)) =>
+    'Sem permissão para acessar o arquivo.',
+  FileSystemException(osError: OSError(errorCode: 2)) =>
+    'O arquivo não foi encontrado.',
+  FileSystemException() => 'Não foi possível ler ou gravar o arquivo.',
+  DatabaseException() => 'Falha ao gravar na biblioteca do app.',
+  PlatformException() => 'O Android não permitiu a operação.',
+  _ => 'Erro inesperado; ele fica no registro enviado em “Enviar feedback”.',
+};
+
 void showError(BuildContext context, String message, Object error) {
   debugPrint('$message: $error');
   logError('$message: $error');
-  ScaffoldMessenger.of(context)
-      .showSnackBar(SnackBar(content: Text(tr(context, message))));
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      duration: const Duration(seconds: 6),
+      content: Text(
+        '${tr(context, message)}. ${tr(context, errorReason(error))}',
+      ),
+    ),
+  );
+}
+
+/// Covers the screen with a spinner and [label] while [task] runs; the task
+/// can change the label through the notifier it receives (e.g. "2 de 5").
+Future<T> withLoading<T>(
+  BuildContext context,
+  String label,
+  Future<T> Function(ValueNotifier<String> status) task,
+) async {
+  final status = ValueNotifier(label);
+  final c = NotivoColors(context);
+  final entry = OverlayEntry(
+    builder: (_) => Stack(
+      children: [
+        const ModalBarrier(dismissible: false, color: Colors.black38),
+        Center(
+          child: Material(
+            color: c.card,
+            borderRadius: BorderRadius.circular(20),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                spacing: 16,
+                children: [
+                  const SizedBox.square(
+                    dimension: 28,
+                    child: CircularProgressIndicator(strokeWidth: 3),
+                  ),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 260),
+                    child: ValueListenableBuilder(
+                      valueListenable: status,
+                      builder: (_, text, _) => Text(
+                        text,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: designText(16, c.tx, weight: FontWeight.w500),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+  Overlay.of(context, rootOverlay: true).insert(entry);
+  try {
+    return await task(status);
+  } finally {
+    entry.remove();
+    status.dispose();
+  }
 }
 
 /// Snack bar with "Desfazer"; completes with how it closed.
@@ -849,29 +928,68 @@ Future<int> importPdfs(
         ))
           (path: file.path, name: file.name),
       ];
-  if (picked.isEmpty) return 0;
-  final failed = <String>[];
+  if (picked.isEmpty || !context.mounted) return 0;
+  // File name and the reason it failed, shown together at the end.
+  final failed = <(String, String)>[];
   var added = 0;
-  for (final file in picked) {
-    try {
-      await Store.instance.importPdf(file.path, file.name, collectionId);
-      added++;
-    } catch (error) {
-      debugPrint('Import ${file.name}: $error');
-      failed.add(file.name);
+  final importing = tr(context, 'Importando');
+  final of = tr(context, 'de');
+  await withLoading(context, importing, (status) async {
+    for (var i = 0; i < picked.length; i++) {
+      final file = picked[i];
+      status.value = picked.length == 1
+          ? '$importing ${file.name}'
+          : '$importing ${i + 1} $of ${picked.length}';
+      try {
+        await Store.instance.importPdf(file.path, file.name, collectionId);
+        added++;
+      } catch (error) {
+        logError('Import ${file.name}: $error');
+        failed.add((file.name, errorReason(error)));
+      }
     }
-  }
-  if (context.mounted) {
+  });
+  if (!context.mounted) return added;
+  if (failed.isEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          failed.isEmpty
-              ? '$added ${tr(context, added == 1 ? 'partitura importada' : 'partituras importadas')}'
-              : '${tr(context, 'Não foi possível importar')}: ${failed.join(', ')}',
+          '$added ${tr(context, added == 1 ? 'partitura importada' : 'partituras importadas')}',
         ),
       ),
     );
+    return added;
   }
+  final c = NotivoColors(context);
+  await showAppSheet<void>(
+    context,
+    builder: (ctx) => AppSheet(
+      title: tr(ctx, 'Não foi possível importar'),
+      subtitle: added == 0
+          ? plural(ctx, failed.length, 'arquivo com erro', 'arquivos com erro')
+          : '${plural(ctx, added, 'partitura importada', 'partituras importadas')} · ${plural(ctx, failed.length, 'arquivo com erro', 'arquivos com erro')}',
+      actions: [
+        SheetPrimary(tr(ctx, 'Entendi'), onPressed: () => Navigator.pop(ctx)),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 12,
+        children: [
+          for (final (name, reason) in failed)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: designText(15, c.tx, weight: FontWeight.w600),
+                ),
+                Text(tr(ctx, reason), style: designText(14, c.tx2)),
+              ],
+            ),
+        ],
+      ),
+    ),
+  );
   return added;
 }
 
@@ -1278,9 +1396,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           collection: collection,
           selection: selection,
           onOpenSelection: widget.picking ? openSelection : null,
-          onCollectionActions: widget.picking
-              ? null
-              : () => collectionActions(collection),
+          onCollectionActions: widget.picking ? null : collectionActions,
         ),
       ),
     );
@@ -1457,7 +1573,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> backup() async {
     setState(() => busy = true);
     try {
-      final zip = await Store.instance.exportBackup();
+      final zip = await withLoading(
+        context,
+        tr(context, 'Criando backup…'),
+        (_) => Store.instance.exportBackup(),
+      );
       await SharePlus.instance.share(ShareParams(files: [XFile(zip.path)]));
     } catch (error) {
       if (mounted) showError(context, 'Não foi possível criar o backup', error);
@@ -1474,21 +1594,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final path = picked.isEmpty ? null : picked.first.path;
     if (path == null || !mounted) return;
     if (!await confirmSheet(
-      context,
-      title: 'Restaurar backup?',
-      message: tr(
-        context,
-        'A biblioteca atual será substituída pelas coleções, partituras e anotações do backup.',
-      ),
-      action: 'Restaurar backup',
-      // Replaces the library but deletes nothing outside the backup: violet, not red.
-      destructive: false,
-    )) {
+          context,
+          title: 'Restaurar backup?',
+          message: tr(
+            context,
+            'A biblioteca atual será substituída pelas coleções, partituras e anotações do backup.',
+          ),
+          action: 'Restaurar backup',
+          // Replaces the library but deletes nothing outside the backup: violet, not red.
+          destructive: false,
+        ) ||
+        !mounted) {
       return;
     }
     setState(() => busy = true);
     try {
-      await Store.instance.restoreBackup(path);
+      await withLoading(
+        context,
+        tr(context, 'Restaurando backup…'),
+        (_) => Store.instance.restoreBackup(path),
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(tr(context, 'Backup restaurado'))),
@@ -1721,7 +1846,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ], c),
                 const SizedBox(height: 24),
                 _section('Backup', [
-                  if (busy) const LinearProgressIndicator(),
                   _row(
                     c,
                     title: 'Fazer backup',
@@ -1855,8 +1979,9 @@ class ScoreListScreen extends StatefulWidget {
   final Collection collection;
   final ScoreSelection selection;
   final VoidCallback? onOpenSelection;
-  // Edit or remove this collection (the library owns those flows).
-  final Future<void> Function()? onCollectionActions;
+  // Edit or remove this collection (the library owns those flows); gets the
+  // collection as it is now, since editing from here changes it.
+  final Future<void> Function(Collection current)? onCollectionActions;
   @override
   State<ScoreListScreen> createState() => _ScoreListScreenState();
 }
@@ -1877,7 +2002,7 @@ class _ScoreListScreenState extends State<ScoreListScreen> {
   late Collection collection = widget.collection;
 
   Future<void> collectionMenu() async {
-    await widget.onCollectionActions?.call();
+    await widget.onCollectionActions?.call(collection);
     final now = (await Store.instance.collections())
         .where((item) => item.id == collection.id)
         .firstOrNull;
@@ -2471,12 +2596,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
   // Export progress from 0 to 1; null when not exporting.
   double? exportProgress;
   // Pages: tap the edges or press a pedal to turn. Continuous: free scroll and zoom.
+  // Both fit the page to the width.
   bool paged = true;
   int page = 1, pageCount = 0;
   PdfViewerController? viewer;
   // A stylus stroke is in progress: the finger must not pan underneath it.
   bool drawing = false;
-  // Stage mode: bars hidden, no zoom, no drawing, no closing tabs; only turning pages.
+  // Stage mode: app and system bars hidden, no drawing, no closing tabs; turning pages and pinch zoom.
   bool stage = false;
   // First-time explanation of stage mode.
   bool coach = false;
@@ -2501,8 +2627,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
       'reading_mode',
       paged ? 'pages' : 'continuous',
     );
-    // Pages mode shows one whole page, so drop any zoom.
-    if (paged) viewer?.goToPage(pageNumber: page, anchor: PdfPageAnchor.all);
+    // Pages mode starts each page fitted to the width, so drop any zoom.
+    if (paged) _fitWidth();
+  }
+
+  void _fitWidth() {
+    final v = viewer;
+    if (v != null) v.goTo(v.calcMatrixFitWidthForPage(pageNumber: page));
   }
 
   void _turn(int delta) {
@@ -2510,7 +2641,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (v == null) return;
     if (paged) {
       final target = (page + delta).clamp(1, math.max(1, pageCount)).toInt();
-      v.goToPage(pageNumber: target, anchor: PdfPageAnchor.all);
+      // Top of the next page at the same zoom and sideways position.
+      v.goToPosition(
+        documentOffset: Offset(
+          v.visibleRect.left,
+          v.layout.pageLayouts[target - 1].top,
+        ),
+        duration: const Duration(milliseconds: 200),
+      );
       return;
     }
     // Continuous: one screen at a time, keeping the last 15% (the last line) in view.
@@ -2531,8 +2669,23 @@ class _ReaderScreenState extends State<ReaderScreen> {
       stage = true;
       coach = seen != '1';
     });
-    // Pages mode shows one whole page, so drop any zoom.
-    if (paged) viewer?.goToPage(pageNumber: page, anchor: PdfPageAnchor.all);
+    // Status and navigation bars hidden: a swipe from the top only shows
+    // them, so the notification shade needs a second, deliberate swipe.
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
+
+  void _exitStage() {
+    setState(() {
+      stage = false;
+      coach = false;
+    });
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  }
+
+  @override
+  void dispose() {
+    if (stage) SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    super.dispose();
   }
 
   void _dismissCoach() {
@@ -2637,6 +2790,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Future<void> closeTab(int index) async {
     if (stage) return;
     final score = tabs[index];
+    if (!await confirmSheet(
+          context,
+          title: 'Fechar aba?',
+          message:
+              '${score.name} ${tr(context, 'sai das abas. A partitura e as anotações continuam salvas.')}',
+          action: 'Fechar aba',
+          // Closing deletes nothing: violet, not red.
+          destructive: false,
+        ) ||
+        !mounted) {
+      return;
+    }
     if (tabs.length == 1) return leave(home: false);
     if (!await flushAnnotations() || !mounted) return;
     final currentIndex = tabs.indexWhere((tab) => tab.id == score.id);
@@ -2647,12 +2812,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
       if (currentIndex < active) active--;
       if (active >= tabs.length) active = tabs.length - 1;
     });
-    showUndo(context, tr(context, 'Partitura fechada'), () {
-      if (!mounted || tabs.any((tab) => tab.id == score.id)) return;
-      setState(() {
-        active = math.min(currentIndex, tabs.length);
-        tabs.insert(active, score);
-      });
+  }
+
+  /// Moves a tab dragged from [from] to [to].
+  void _moveTab(int from, int to) {
+    final current = tabs[active];
+    setState(() {
+      tabs.insert(to, tabs.removeAt(from));
+      active = tabs.indexOf(current);
     });
   }
 
@@ -2671,33 +2838,51 @@ class _ReaderScreenState extends State<ReaderScreen> {
       context,
       builder: (ctx) => AppSheet(
         title: tr(ctx, 'Partituras abertas'),
+        subtitle: tabs.length > 1
+            ? tr(ctx, 'Segure e arraste para mudar a ordem')
+            : null,
         list: true,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            for (var i = 0; i < tabs.length; i++)
-              ListTile(
-                minTileHeight: 56,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                selected: i == active,
-                selectedTileColor: c.active,
-                leading: ScoreThumb(path: tabs[i].path, width: 32),
-                title: Text(
-                  tabs[i].name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: DesignIcon(
-                  icon: LucideIcons.x,
-                  label: 'Fechar aba',
-                  onPressed: () => Navigator.pop(ctx, -1 - i),
-                  color: c.tx2,
-                  size: 18,
-                ),
-                onTap: () => Navigator.pop(ctx, i),
+            // Rebuilds itself after a drag; the reader's tabs change too.
+            StatefulBuilder(
+              builder: (ctx, setSheet) => ReorderableListView(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                buildDefaultDragHandles: false,
+                onReorderItem: (from, to) => setSheet(() => _moveTab(from, to)),
+                children: [
+                  for (var i = 0; i < tabs.length; i++)
+                    ReorderableDelayedDragStartListener(
+                      key: ValueKey(tabs[i].id),
+                      index: i,
+                      child: ListTile(
+                        minTileHeight: 56,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        selected: i == active,
+                        selectedTileColor: c.active,
+                        leading: ScoreThumb(path: tabs[i].path, width: 32),
+                        title: Text(
+                          tabs[i].name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: DesignIcon(
+                          icon: LucideIcons.x,
+                          label: 'Fechar aba',
+                          onPressed: () => Navigator.pop(ctx, -1 - i),
+                          color: c.tx2,
+                          size: 18,
+                        ),
+                        onTap: () => Navigator.pop(ctx, i),
+                      ),
+                    ),
+                ],
               ),
+            ),
             ListTile(
               minTileHeight: 56,
               leading: Icon(LucideIcons.plus, color: c.accent),
@@ -2877,12 +3062,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
     const toolbarHeight = 64.0;
     final headerHeight = 56 + toolbarHeight + 1;
     const handleHeight = 32.0;
-    final pageGutter = compact ? 8.0 : 20.0;
     // Stage mode reads like the Navigate tool, whatever tool was picked.
     final activeTool = stage ? 'navigate' : tool;
     // With "pen only" the finger keeps scrolling and zooming while the pen draws.
     final fingerNavigates = activeTool == 'navigate' || penOnly;
-    final freeScroll = !paged && fingerNavigates && !drawing;
+    // Pages are fitted to the width, so they may run taller than the screen:
+    // the finger scrolls in both modes.
+    final canPan = fingerNavigates && !drawing;
     // In stage mode the page starts below the badge (6 + 44 touch area + 6).
     final viewerTop = stage
         ? 56.0
@@ -2952,8 +3138,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   Positioned.fill(child: ColoredBox(color: c.soft)),
                   Positioned(
                     top: viewerTop,
-                    left: pageGutter,
-                    right: pageGutter,
+                    left: 0,
+                    right: 0,
                     bottom: 0,
                     child: PdfViewer.file(
                       score.path,
@@ -2962,12 +3148,26 @@ class _ReaderScreenState extends State<ReaderScreen> {
                         margin: 0,
                         sizeDelegateProvider:
                             const PdfViewerSizeDelegateProviderLegacy(
-                              calculateInitialZoom: _fitWholePage,
+                              calculateInitialZoom: _fitPageWidth,
                             ),
-                        panEnabled: freeScroll,
-                        // Stage mode keeps the size fixed and scrolls only up and down.
-                        scaleEnabled: freeScroll && !stage,
-                        panAxis: stage ? PanAxis.vertical : PanAxis.free,
+                        panEnabled: canPan,
+                        // Pinch zoom in every mode; a page turn keeps the zoom.
+                        scaleEnabled: canPan,
+                        loadingBannerBuilder: (context, _, _) =>
+                            const Center(child: CircularProgressIndicator()),
+                        errorBannerBuilder: (context, error, _, _) {
+                          logError('Open ${score.name}: $error');
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Text(
+                                '${tr(context, 'Não foi possível abrir a partitura')}. ${tr(context, errorReason(error))}',
+                                textAlign: TextAlign.center,
+                                style: designText(16, c.tx2),
+                              ),
+                            ),
+                          );
+                        },
                         // Keys are handled above, the same way in both modes.
                         keyHandlerParams: const PdfViewerKeyHandlerParams(
                           enabled: false,
@@ -3137,31 +3337,73 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                           ),
                                         ),
                                       )
-                                    else ...[
+                                    else
+                                      // Hold a tab and drag it to reorder; "+" follows the
+                                      // last tab, after a divider, like browser tabs.
                                       Expanded(
-                                        child: SingleChildScrollView(
+                                        child: ReorderableListView(
                                           scrollDirection: Axis.horizontal,
-                                          child: Row(
-                                            spacing: 2,
+                                          buildDefaultDragHandles: false,
+                                          onReorderItem: _moveTab,
+                                          // The held tab lifts into a card; the others slide aside.
+                                          proxyDecorator: (child, _, animation) =>
+                                              AnimatedBuilder(
+                                                animation: animation,
+                                                builder: (context, child) {
+                                                  final t = Curves.easeOut
+                                                      .transform(animation.value);
+                                                  return Transform.scale(
+                                                    scale: 1 + .04 * t,
+                                                    child: Material(
+                                                      color: c.bg,
+                                                      elevation: 6 * t,
+                                                      shadowColor: c.accent
+                                                          .withValues(alpha: .35),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            10,
+                                                          ),
+                                                      clipBehavior: Clip.antiAlias,
+                                                      child: child,
+                                                    ),
+                                                  );
+                                                },
+                                                child: child,
+                                              ),
+                                          footer: Row(
                                             children: [
-                                              for (
-                                                var i = 0;
-                                                i < tabs.length;
-                                                i++
-                                              )
-                                                tabChip(i),
+                                              Container(
+                                                width: 1,
+                                                height: 24,
+                                                color: c.line,
+                                                margin:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 6,
+                                                    ),
+                                              ),
+                                              DesignIcon(
+                                                icon: LucideIcons.plus,
+                                                label: 'Abrir outra partitura',
+                                                onPressed: addTab,
+                                                color: c.tx2,
+                                                size: 20,
+                                              ),
                                             ],
                                           ),
+                                          children: [
+                                            for (
+                                              var i = 0;
+                                              i < tabs.length;
+                                              i++
+                                            )
+                                              ReorderableDelayedDragStartListener(
+                                                key: ValueKey(tabs[i].id),
+                                                index: i,
+                                                child: tabChip(i),
+                                              ),
+                                          ],
                                         ),
                                       ),
-                                      DesignIcon(
-                                        icon: LucideIcons.plus,
-                                        label: 'Abrir outra partitura',
-                                        onPressed: addTab,
-                                        color: c.tx2,
-                                        size: 20,
-                                      ),
-                                    ],
                                     compact
                                         ? DesignIcon(
                                             icon: LucideIcons.lock,
@@ -3269,13 +3511,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       left: 0,
                       right: 0,
                       child: Center(
-                        child: _StagePill(
-                          paged: paged,
-                          onExit: () => setState(() {
-                            stage = false;
-                            coach = false;
-                          }),
-                        ),
+                        child: _StagePill(paged: paged, onExit: _exitStage),
                       ),
                     ),
                 ],
@@ -3469,7 +3705,7 @@ class _StageCoach extends StatelessWidget {
                     style: designText(20, c.tx, weight: FontWeight.w700),
                   ),
                   for (final line in [
-                    'Zoom e anotações ficam travados',
+                    'Anotações ficam travadas; o zoom com pinça continua',
                     paged ? 'Vire com toque nas bordas ou com o pedal' : 'Role com o dedo, ou avance uma tela com toque nas bordas ou com o pedal',
                     'As abas não fecham por engano',
                     'Para sair, segure o selo no topo por 1 segundo',
@@ -3511,12 +3747,15 @@ class _StageCoach extends StatelessWidget {
   }
 }
 
-double? _fitWholePage(
+/// Opens scores with the widest page filling the viewer's width.
+double? _fitPageWidth(
   PdfDocument document,
   PdfViewerController controller,
   double fitZoom,
   double coverZoom,
-) => fitZoom;
+) =>
+    controller.viewSize.width /
+    document.pages.map((page) => page.width).reduce(math.max);
 
 /// Undo steps kept per page, in memory and in the database.
 const maxUndoSteps = 50;
@@ -3556,6 +3795,8 @@ class _AnnotationPadState extends State<AnnotationPad> {
   DateTime? lastEdited;
   bool ready = false;
   int? pointer;
+  // Where the eraser is, touching or hovering with the pen; null hides the ring.
+  Offset? eraserAt;
   Future<void> pendingSave = Future.value();
 
   @override
@@ -3716,41 +3957,92 @@ class _AnnotationPadState extends State<AnnotationPad> {
     await _commit();
   }
 
+  void _aim(Offset? position) {
+    final at = widget.tool == 'eraser' ? position : null;
+    if (at != eraserAt) setState(() => eraserAt = at);
+  }
+
   @override
   Widget build(BuildContext context) => IgnorePointer(
     ignoring: !ready || widget.tool == 'navigate',
-    child: Listener(
-      behavior: HitTestBehavior.opaque,
-      onPointerDown: (event) {
-        if (pointer != null || event.buttons != kPrimaryButton) return;
-        if (widget.penOnly && event.kind == PointerDeviceKind.touch) return;
-        pointer = event.pointer;
-        _start(event.localPosition, context.size!);
-        widget.onDrawing?.call(true);
-      },
-      onPointerMove: (event) {
-        if (event.pointer == pointer) _move(event.localPosition, context.size!);
-      },
-      onPointerUp: (event) {
-        if (event.pointer != pointer) return;
-        pointer = null;
-        widget.onDrawing?.call(false);
-        _commit();
-      },
-      onPointerCancel: (event) {
-        if (event.pointer != pointer) return;
-        pointer = null;
-        current = null;
-        if (undoStack.isNotEmpty) strokes = undoStack.removeLast();
-        widget.onDrawing?.call(false);
-        setState(() {});
-      },
-      child: CustomPaint(
-        painter: _StrokePainter([...strokes, if (current != null) current!]),
-        child: const SizedBox.expand(),
+    child: MouseRegion(
+      // A hovering pen (S Pen) shows the ring before it touches.
+      onHover: (event) => pointer == null ? _aim(event.localPosition) : null,
+      onExit: (_) => pointer == null ? _aim(null) : null,
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: (event) {
+          if (pointer != null || event.buttons != kPrimaryButton) return;
+          if (widget.penOnly && event.kind == PointerDeviceKind.touch) return;
+          pointer = event.pointer;
+          _aim(event.localPosition);
+          _start(event.localPosition, context.size!);
+          widget.onDrawing?.call(true);
+        },
+        onPointerMove: (event) {
+          if (event.pointer != pointer) return;
+          _aim(event.localPosition);
+          _move(event.localPosition, context.size!);
+        },
+        onPointerUp: (event) {
+          if (event.pointer != pointer) return;
+          pointer = null;
+          // A pen lifted but still hovering keeps the ring; the finger hides it.
+          if (event.kind != PointerDeviceKind.stylus) _aim(null);
+          widget.onDrawing?.call(false);
+          _commit();
+        },
+        onPointerCancel: (event) {
+          if (event.pointer != pointer) return;
+          pointer = null;
+          current = null;
+          eraserAt = null;
+          if (undoStack.isNotEmpty) strokes = undoStack.removeLast();
+          widget.onDrawing?.call(false);
+          setState(() {});
+        },
+        child: CustomPaint(
+          painter: _StrokePainter([...strokes, if (current != null) current!]),
+          foregroundPainter: eraserAt == null || widget.tool != 'eraser'
+              ? null
+              : _EraserRing(
+                  eraserAt!,
+                  eraserRadius * widget.size,
+                  NotivoColors(context).tx2,
+                ),
+          child: const SizedBox.expand(),
+        ),
       ),
     ),
   );
+}
+
+/// The eraser's reach around the finger or pen, the same radius [_erase] uses.
+class _EraserRing extends CustomPainter {
+  const _EraserRing(this.center, this.radius, this.color);
+  final Offset center;
+  final double radius;
+  final Color color;
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()..color = color.withValues(alpha: .12),
+    );
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _EraserRing old) =>
+      old.center != center || old.radius != radius || old.color != color;
 }
 
 /// Width in PDF points; the overlay is laid out in points, so screen and export match.

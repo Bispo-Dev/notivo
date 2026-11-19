@@ -9,6 +9,7 @@ import 'package:sqflite/sqflite.dart' as sqflite;
 
 import '../lib/design.dart';
 import '../lib/main.dart' as app;
+import '../lib/sheets.dart';
 import '../lib/strings.dart' as app_strings;
 
 const _pathProvider = MethodChannel('plugins.flutter.io/path_provider');
@@ -152,9 +153,23 @@ Future<void> main() async {
       case 'query':
         if (sql.contains('from collections')) {
           return {
-            'columns': ['id', 'name', 'color', 'icon', 'sort_order', 'icon_color'],
+            'columns': [
+              'id',
+              'name',
+              'color',
+              'icon',
+              'sort_order',
+              'icon_color',
+            ],
             'rows': [
-              <Object?>[1, 'Coleção de teste', '#6D3BD2', 'music', 0, '#FFFFFF'],
+              <Object?>[
+                1,
+                'Coleção de teste',
+                '#6D3BD2',
+                'music',
+                0,
+                '#FFFFFF',
+              ],
             ],
           };
         }
@@ -290,33 +305,29 @@ Future<void> main() async {
     'Confirming picker did not add a reader tab',
   );
 
-  // Closing is immediate; the snackbar's Undo brings the tab back.
+  // Closing asks first: Cancel keeps the tab, "Fechar aba" closes it.
   await _tapLastIcon('Fechar aba');
-  await _waitUntil(
-    () => !_widgets().whereType<Text>().any(
-      (text) => text.data == 'Partitura adicionada',
-    ),
-    'Closing did not remove the extra tab',
-  );
-  _widgets().whereType<SnackBarAction>().first.onPressed();
-  await _waitUntil(
-    () => _widgets().whereType<Text>().any(
-      (text) => text.data == 'Partitura adicionada',
-    ),
-    'Undo did not restore the closed tab',
-  );
-  ScaffoldMessenger.of(
-    _elements(WidgetsBinding.instance.rootElement!).firstWhere(
-      (element) => element.widget is Scaffold,
-    ),
-  ).hideCurrentSnackBar();
+  _widgets().whereType<TextButton>().lastWhere((b) {
+    final child = b.child;
+    return child is Text && child.data == 'Cancelar';
+  }).onPressed!();
   await _settle();
+  _expect(
+    _widgets().whereType<Text>().any(
+      (text) => text.data == 'Partitura adicionada',
+    ),
+    'Canceling the close confirmation removed the tab',
+  );
   await _tapLastIcon('Fechar aba');
+  _widgets()
+      .whereType<SheetPrimary>()
+      .lastWhere((b) => b.label == 'Fechar aba')
+      .onPressed!();
   await _waitUntil(
     () => !_widgets().whereType<Text>().any(
       (text) => text.data == 'Partitura adicionada',
     ),
-    'Closing again did not remove the extra tab',
+    'Confirming the close did not remove the extra tab',
   );
   _expect(
     _widgets().whereType<Text>().any(
@@ -348,11 +359,10 @@ Future<void> main() async {
     'Drawing mode lets PDF pan underneath the stroke',
   );
   await _tapIcon('Navegar');
-  // Pages mode (the default) turns pages by tap or pedal, so the PDF does not pan
-  // there; scale stays off too. Free panning belongs to continuous mode.
+  // Pages mode (the default) turns pages by tap or pedal and still zooms by pinch.
   _expect(
-    !_widgets().whereType<PdfViewer>().first.params.scaleEnabled,
-    'Pages mode let the PDF zoom',
+    _widgets().whereType<PdfViewer>().first.params.scaleEnabled,
+    'Pages mode blocked pinch zoom',
   );
   await _tapIcon('Recolher abas e ferramentas');
   _expect(
