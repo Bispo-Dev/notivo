@@ -1,5 +1,6 @@
 $ErrorActionPreference = 'Stop'
-$notivoRoot = $PSScriptRoot
+# The script lives in app/; the local toolchain (.tooling) stays at the repo root.
+$notivoRoot = Split-Path -Parent $PSScriptRoot
 $notivoTooling = Join-Path $notivoRoot '.tooling'
 $env:JAVA_HOME = Join-Path $notivoTooling 'jdk'
 $env:ANDROID_HOME = Join-Path $notivoTooling 'android-sdk'

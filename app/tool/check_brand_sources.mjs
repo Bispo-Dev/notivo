@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const paths = (svg) => [...svg.matchAll(/<path\b[^>]*\bd="([^"]*)"/g)].map((m) => m[1]);
-const folder = 'docs/notivo-manual-de-marca/';
+const folder = 'app/docs/notivo-manual-de-marca/';
 const dart = read('app/lib/brand.dart');
 const literal = (name) => {
   const match = dart.match(new RegExp(`const\\s+${name}\\s*=\\s*r'''([\\s\\S]*?)'''`));
