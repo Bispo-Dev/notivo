@@ -3,6 +3,8 @@ const MOTION = 'https://cdn.jsdelivr.net/npm/motion@12/+esm';
 const ease = [0.22, 1, 0.36, 1];
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+document.querySelector('[data-year]').textContent = new Date().getFullYear();
+
 // Phones: a download button docks at the bottom once the hero button scrolls away.
 const dock = document.querySelector('[data-dock]');
 const heroButton = document.getElementById('download');

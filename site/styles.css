@@ -133,6 +133,8 @@ h1 {
 }
 .hero__cta { margin-top: 28px; display: flex; flex-direction: column; gap: 12px; align-items: stretch; }
 .meta { color: var(--tx2); font-size: 14px; text-align: center; }
+.meta a { color: inherit; text-underline-offset: 3px; }
+.meta a:hover { color: var(--accent); }
 
 /* The app icon is the hero picture. */
 /* A roomy area around the icon catches the pointer; Motion tilts the icon in 3D. */
@@ -206,6 +208,7 @@ section h2 { font-size: clamp(1.75rem, 7vw, 2.5rem); letter-spacing: -0.01em; }
 .step h3 { font-size: 17px; }
 .step p { margin-top: 4px; color: var(--tx2); font-size: 15px; }
 .note { margin-top: 14px; color: var(--tx2); font-size: 14px; text-align: center; }
+.note a { color: var(--accent); font-weight: 600; text-underline-offset: 3px; }
 
 .privacy__box {
   display: flex;
@@ -230,9 +233,36 @@ section h2 { font-size: clamp(1.75rem, 7vw, 2.5rem); letter-spacing: -0.01em; }
   color: #e4dbfb;
   text-align: center;
 }
+.foot__brand { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .foot p { display: flex; flex-direction: column; gap: 2px; }
 .foot strong { color: #fff; font-size: 18px; font-weight: 700; letter-spacing: .01em; }
-.foot span { font-family: 'Source Serif 4', Georgia, serif; font-size: 16px; color: var(--lavender); }
+.foot p span { font-family: 'Source Serif 4', Georgia, serif; font-size: 16px; color: var(--lavender); }
+
+/* Copyright and developer credit, same pattern as the Galpão site. */
+.foot__bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  align-self: stretch;
+  margin-inline: -20px;
+  padding-inline: 20px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(201, 182, 245, .18);
+  font-size: 13.5px;
+  color: #a99fcc;
+}
+.foot__bottom small { font-size: inherit; }
+.dev-credit { display: inline-flex; align-items: center; gap: 8px; padding: 10px 0; margin: -10px 0; color: #a99fcc; text-decoration: none; }
+.dev-credit b { color: #fff; font-weight: 800; transition: color .2s; }
+.dev-credit .bispo-logo { width: 18px; height: auto; transition: transform .3s cubic-bezier(.22, 1, .36, 1); }
+.dev-credit:hover b, .dev-credit:focus-visible b { color: #C8FF4D; }
+.dev-credit:hover .bispo-logo { transform: translateY(-2px) rotate(-8deg); }
+@media (min-width: 720px) {
+  /* The line runs edge to edge; the text lines up with the page content (1120px). */
+  .foot__bottom { flex-direction: row; justify-content: space-between; margin-inline: -40px; padding-inline: max(40px, calc((100% - 1040px) / 2)); }
+}
 
 /* Bottom download button on phones; Motion shows it once the hero button scrolls away. */
 .dock {
@@ -261,7 +291,8 @@ section h2 { font-size: clamp(1.75rem, 7vw, 2.5rem); letter-spacing: -0.01em; }
   .button--wide { width: auto; }
   .install { text-align: left; }
   .note { text-align: left; }
-  .foot { flex-direction: row; justify-content: center; gap: 14px; padding: 32px 40px; text-align: left; }
+  .foot { padding: 32px 40px; text-align: left; }
+  .foot__brand { flex-direction: row; gap: 14px; }
   .foot p { flex-direction: row; align-items: baseline; gap: 10px; }
   .foot p span::before { content: '·'; margin-right: 10px; color: #8e84a8; }
   .dock { display: none; }
