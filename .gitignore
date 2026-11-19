@@ -22,3 +22,8 @@ app/android/key.properties
 
 # Wrangler local state
 .wrangler/
+
+# Internal docs (kept locally only)
+DEPLOY.md
+app/README.md
+app/docs/
