@@ -116,12 +116,7 @@ class Store {
         await db.execute(
           'CREATE TABLE preferences(key TEXT PRIMARY KEY,value TEXT NOT NULL)',
         );
-        const seeds = [
-          ('Orquestra', '#6D3BD2', 'music'),
-          ('Banda', '#2E1A6B', 'drum'),
-          ('Igreja', '#C9B6F5', 'church'),
-          ('Estudos', '#8A5CE8', 'book-open'),
-        ];
+        const seeds = [('Minhas partituras', '#6D3BD2', 'music')];
         for (var i = 0; i < seeds.length; i++) {
           final item = seeds[i];
           await db.insert('collections', {
@@ -206,6 +201,22 @@ class Store {
     });
   }
 
+  Future<void> addToCollections(
+    Iterable<int> scoreIds,
+    Iterable<int> collectionIds,
+  ) async {
+    await (await _db).transaction((txn) async {
+      for (final scoreId in scoreIds) {
+        for (final collectionId in collectionIds) {
+          await txn.insert('collection_scores', {
+            'collection_id': collectionId,
+            'score_id': scoreId,
+          }, conflictAlgorithm: ConflictAlgorithm.ignore);
+        }
+      }
+    });
+  }
+
   Future<List<Score>> scores({
     int? collectionId,
     String search = '',
@@ -262,7 +273,9 @@ class Store {
 
   Future<void> importPdf(PlatformFile file, int? collectionId) async {
     final sourcePath = file.path;
-    if (sourcePath == null || !file.name.toLowerCase().endsWith('.pdf')) return;
+    if (sourcePath == null || !file.name.toLowerCase().endsWith('.pdf')) {
+      throw FormatException('${file.name} não é um PDF.');
+    }
     final source = File(sourcePath);
     final handle = await source.open();
     late final String header;
@@ -397,155 +410,6 @@ class Store {
               .map((e) => List<Map<String, dynamic>>.from(e))
               .toList();
   }
-
-  /// Library as JSON with PDFs embedded in base64.
-  // shortcut: whole backup is built in memory, stream to a file if libraries reach hundreds of MB.
-  Future<String> exportBackup({required bool annotations}) async {
-    final db = await _db;
-    final scores = <Map<String, Object?>>[];
-    for (final row in await db.query('scores')) {
-      final id = row['id']! as int;
-      scores.add({
-        'name': row['name'],
-        'original_name': row['original_name'],
-        'imported_at': row['imported_at'],
-        'collections': [
-          for (final link in await db.query(
-            'collection_scores',
-            where: 'score_id=?',
-            whereArgs: [id],
-          ))
-            link['collection_id'],
-        ],
-        'pdf': base64Encode(await File(row['path']! as String).readAsBytes()),
-        if (annotations)
-          'annotations': await db.query(
-            'annotations',
-            columns: ['page', 'data', 'history', 'last_edited'],
-            where: 'score_id=?',
-            whereArgs: [id],
-          ),
-      });
-    }
-    return jsonEncode({
-      'app': 'notivo',
-      'version': 1,
-      'collections': await db.query(
-        'collections',
-        columns: ['id', 'name', 'color', 'icon', 'icon_color'],
-        orderBy: 'sort_order,id',
-      ),
-      'scores': scores,
-    });
-  }
-
-  /// Merges a backup: collections and scores whose name already exists are reused.
-  /// Returns how many scores were added.
-  Future<int> importBackup(String text) async {
-    final data = jsonDecode(text.trim());
-    if (data is! Map ||
-        data['app'] != 'notivo' ||
-        data['collections'] is! List ||
-        data['scores'] is! List) {
-      throw const FormatException('Backup do Notivo inválido.');
-    }
-    final hex = RegExp(r'^#[0-9A-Fa-f]{6}$');
-    String color(Object? value, String fallback) =>
-        value is String && hex.hasMatch(value) ? value : fallback;
-    final db = await _db;
-    final dir = await getApplicationSupportDirectory();
-    final written = <File>[];
-    var added = 0;
-    try {
-      await db.transaction((txn) async {
-        final ids = <Object?, int>{};
-        var order = DateTime.now().millisecondsSinceEpoch;
-        for (final item in data['collections'] as List) {
-          final name = (item as Map)['name'] as String;
-          final found = await txn.query(
-            'collections',
-            columns: ['id'],
-            where: 'name=?',
-            whereArgs: [name],
-            limit: 1,
-          );
-          ids[item['id']] = found.isNotEmpty
-              ? found.first['id']! as int
-              : await txn.insert('collections', {
-                  'name': name,
-                  'color': color(item['color'], '#6D3BD2'),
-                  'icon': item['icon'] is String ? item['icon'] : 'music',
-                  'icon_color': color(item['icon_color'], '#FFFFFF'),
-                  'sort_order': order++,
-                });
-        }
-        for (final item in data['scores'] as List) {
-          final name = (item as Map)['name'] as String;
-          final found = await txn.query(
-            'scores',
-            columns: ['id'],
-            where: 'name=?',
-            whereArgs: [name],
-            limit: 1,
-          );
-          late final int scoreId;
-          if (found.isNotEmpty) {
-            scoreId = found.first['id']! as int;
-          } else {
-            final bytes = base64Decode(item['pdf'] as String);
-            final header = latin1.decode(
-              bytes.take(1024).toList(),
-              allowInvalid: true,
-            );
-            if (!header.contains('%PDF-')) {
-              throw FormatException('$name não contém um PDF válido.');
-            }
-            final file = File(
-              p.join(
-                dir.path,
-                '${DateTime.now().microsecondsSinceEpoch}_$added.pdf',
-              ),
-            );
-            written.add(file);
-            await file.writeAsBytes(bytes, flush: true);
-            scoreId = await txn.insert('scores', {
-              'name': name,
-              'original_name': item['original_name'] as String? ?? '$name.pdf',
-              'path': file.path,
-              'imported_at':
-                  item['imported_at'] as String? ??
-                  DateTime.now().toIso8601String(),
-            });
-            added++;
-            for (final note in item['annotations'] as List? ?? const []) {
-              await txn.insert('annotations', {
-                'score_id': scoreId,
-                'page': (note as Map)['page'] as int,
-                'data': note['data'] as String,
-                'history': note['history'] as String,
-                'last_edited': note['last_edited'] as String,
-              }, conflictAlgorithm: ConflictAlgorithm.replace);
-            }
-          }
-          for (final old in item['collections'] as List? ?? const []) {
-            final id = ids[old];
-            if (id != null) {
-              await txn.insert('collection_scores', {
-                'collection_id': id,
-                'score_id': scoreId,
-              }, conflictAlgorithm: ConflictAlgorithm.ignore);
-            }
-          }
-        }
-      });
-    } catch (_) {
-      for (final file in written) {
-        if (await file.exists()) await file.delete();
-      }
-      rethrow;
-    }
-    return added;
-  }
 }
 
 Future<void> openSelectedScores(
@@ -632,13 +496,18 @@ class NotivoApp extends StatefulWidget {
 }
 
 class _NotivoAppState extends State<NotivoApp> {
-  ThemeMode theme = ThemeMode.light;
-  String language = 'pt';
+  // Follow the system until the user picks a theme or language in the menu.
+  ThemeMode theme = ThemeMode.system;
+  String? language;
   @override
   void initState() {
     super.initState();
     Store.instance.preference('theme').then((value) {
-      if (mounted && value == 'dark') setState(() => theme = ThemeMode.dark);
+      if (mounted && (value == 'dark' || value == 'light')) {
+        setState(
+          () => theme = value == 'dark' ? ThemeMode.dark : ThemeMode.light,
+        );
+      }
     });
     Store.instance.preference('language').then((value) {
       if (mounted && (value == 'pt' || value == 'en'))
@@ -647,7 +516,11 @@ class _NotivoAppState extends State<NotivoApp> {
   }
 
   void toggleTheme() {
-    final dark = theme != ThemeMode.dark;
+    final isDark = theme == ThemeMode.system
+        ? WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+              Brightness.dark
+        : theme == ThemeMode.dark;
+    final dark = !isDark;
     setState(() => theme = dark ? ThemeMode.dark : ThemeMode.light);
     Store.instance.setPreference('theme', dark ? 'dark' : 'light');
   }
@@ -697,17 +570,111 @@ class _NotivoAppState extends State<NotivoApp> {
     theme: _theme(Brightness.light),
     darkTheme: _theme(Brightness.dark),
     themeMode: theme,
-    locale: Locale(language),
+    locale: language == null ? null : Locale(language!),
     supportedLocales: notivoSupportedLocales,
     localizationsDelegates: notivoLocalizationDelegates,
     home: LibraryScreen(onToggleTheme: toggleTheme, onLanguage: changeLanguage),
   );
 }
 
-void showError(BuildContext context, String message, Object error) =>
+/// Shows a plain-language message; the technical error only goes to the log.
+void showError(BuildContext context, String message, Object error) {
+  debugPrint('$message: $error');
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(tr(context, message))),
+  );
+}
+
+void showUndo(BuildContext context, String message, VoidCallback onUndo) =>
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          persist: false,
+          action: SnackBarAction(
+            label: tr(context, 'Desfazer'),
+            onPressed: onUndo,
+          ),
+        ),
+      );
+
+/// Picks PDFs and imports each into [collectionId]; one bad file doesn't stop the rest.
+/// Returns how many were imported.
+Future<int> importPdfs(BuildContext context, int collectionId) async {
+  final picked = await FilePicker.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: const ['pdf'],
+  );
+  if (picked.isEmpty) return 0;
+  final failed = <String>[];
+  var added = 0;
+  for (final file in picked) {
+    try {
+      await Store.instance.importPdf(file, collectionId);
+      added++;
+    } catch (error) {
+      debugPrint('Import ${file.name}: $error');
+      failed.add(file.name);
+    }
+  }
+  if (context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${tr(context, message)}: $error')),
+      SnackBar(
+        content: Text(
+          failed.isEmpty
+              ? '$added ${tr(context, added == 1 ? 'partitura importada' : 'partituras importadas')}'
+              : '${tr(context, 'Não foi possível importar')}: ${failed.join(', ')}',
+        ),
+      ),
     );
+  }
+  return added;
+}
+
+/// Sheet with a checkbox per collection; returns the chosen ids, or null on cancel.
+Future<Set<int>?> pickCollections(
+  BuildContext context, {
+  required String title,
+  Set<int> initial = const {},
+}) async {
+  final all = await Store.instance.collections();
+  if (!context.mounted) return null;
+  final chosen = {...initial};
+  return showAppSheet<Set<int>>(
+    context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setSheet) => AppSheet(
+        title: tr(ctx, title),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final collection in all)
+              CheckboxListTile(
+                value: chosen.contains(collection.id),
+                title: Text(collection.name),
+                onChanged: (value) => setSheet(
+                  () => value == true
+                      ? chosen.add(collection.id)
+                      : chosen.remove(collection.id),
+                ),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(tr(ctx, 'Cancelar')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, chosen),
+            child: Text(tr(ctx, 'Concluir')),
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
 Future<bool> confirmSheet(
   BuildContext context, {
@@ -842,6 +809,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                           : openMenu,
                       picking: widget.picking,
                       onCreate: () => editCollection(),
+                      onImport: widget.picking ? null : importHere,
                       onBrowseAll: () => chooseScores(context, selection),
                       bottomPadding: selection.value.isEmpty ? 40 : 120,
                       cards: snap.data!
@@ -875,23 +843,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   ),
                 if (selection.value.isNotEmpty)
                   Positioned(
-                    left: compact ? 12 : 96,
-                    right: compact ? 12 : 96,
+                    left: compact ? 12 : math.max(96, (MediaQuery.sizeOf(context).width - 640) / 2),
+                    right: compact ? 12 : math.max(96, (MediaQuery.sizeOf(context).width - 640) / 2),
                     bottom: compact ? 16 : 40,
                     child: SelectionPill(
                       count: selection.value.length,
                       onClear: selection.clear,
                       onOpen: openSelection,
-                      onAdd: () => ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            tr(
-                              context,
-                              'Abra uma coleção para selecionar mais partituras.',
-                            ),
-                          ),
-                        ),
-                      ),
                     ),
                   ),
               ],
@@ -914,6 +872,37 @@ class _LibraryScreenState extends State<LibraryScreen> {
       ),
     );
     if (mounted) refresh();
+  }
+
+  /// Imports from the home screen: asks for the target only when there is a choice.
+  Future<void> importHere() async {
+    var all = await future ?? const <Collection>[];
+    if (all.isEmpty) {
+      await editCollection();
+      all = await Store.instance.collections();
+    }
+    if (!mounted || all.isEmpty) return;
+    final target = all.length == 1
+        ? all.first
+        : await showAppSheet<Collection>(
+            context,
+            builder: (ctx) => AppSheet(
+              title: tr(ctx, 'Importar para'),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final collection in all)
+                    ListTile(
+                      leading: Icon(collectionIcon(collection.icon)),
+                      title: Text(collection.name),
+                      onTap: () => Navigator.pop(ctx, collection),
+                    ),
+                ],
+              ),
+            ),
+          );
+    if (target == null || !mounted) return;
+    if (await importPdfs(context, target.id) > 0 && mounted) refresh();
   }
 
   Future<void> collectionActions(Collection collection) async {
@@ -1061,96 +1050,12 @@ class MenuScreen extends StatelessWidget {
                       if (value != null) onLanguage?.call(value);
                     },
                   ),
-                const Divider(height: 24),
-                _header(context, 'Backup'),
-                ListTile(
-                  leading: const Icon(LucideIcons.databaseBackup),
-                  title: Text(tr(context, 'Salvar backup')),
-                  subtitle: Text(
-                    tr(context, 'Coleções e partituras com os nomes atuais.'),
-                  ),
-                  onTap: () => saveBackup(context),
-                ),
-                ListTile(
-                  leading: const Icon(LucideIcons.archiveRestore),
-                  title: Text(tr(context, 'Restaurar backup')),
-                  subtitle: Text(
-                    tr(context, 'Escolha o arquivo. Itens com o mesmo nome não são duplicados.'),
-                  ),
-                  onTap: () => restoreBackup(context),
-                ),
               ],
             ),
           ),
         ),
       ),
     );
-  }
-}
-
-Future<void> saveBackup(BuildContext context) async {
-  var withAnnotations = true;
-  final go = await showAppSheet<bool>(
-    context,
-    builder: (ctx) => StatefulBuilder(
-      builder: (ctx, setSheet) => AppSheet(
-        title: tr(ctx, 'Salvar backup'),
-        child: CheckboxListTile(
-          contentPadding: EdgeInsets.zero,
-          value: withAnnotations,
-          title: Text(tr(ctx, 'Incluir anotações')),
-          onChanged: (value) => setSheet(() => withAnnotations = value ?? false),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(tr(ctx, 'Cancelar')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(tr(ctx, 'Salvar')),
-          ),
-        ],
-      ),
-    ),
-  );
-  if (go != true || !context.mounted) return;
-  try {
-    final json = await Store.instance.exportBackup(
-      annotations: withAnnotations,
-    );
-    final day = DateTime.now().toIso8601String().substring(0, 10);
-    final file = File(
-      p.join((await getTemporaryDirectory()).path, 'notivo-backup-$day.json'),
-    );
-    await file.writeAsString(json, flush: true);
-    await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
-  } catch (error) {
-    if (context.mounted) showError(context, 'Falha ao salvar backup', error);
-  }
-}
-
-Future<void> restoreBackup(BuildContext context) async {
-  final picked = await FilePicker.pickFiles(
-    type: FileType.custom,
-    allowedExtensions: const ['json'],
-  );
-  final path = picked.isEmpty ? null : picked.first.path;
-  if (path == null || !context.mounted) return;
-  try {
-    final added = await Store.instance.importBackup(
-      await File(path).readAsString(),
-    );
-    if (context.mounted)
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${tr(context, 'Backup restaurado')}: $added ${tr(context, 'partituras')}',
-          ),
-        ),
-      );
-  } catch (error) {
-    if (context.mounted) showError(context, 'Falha ao restaurar', error);
   }
 }
 
@@ -1215,9 +1120,6 @@ class _ScoreListScreenState extends State<ScoreListScreen> {
     (LucideIcons.clockArrowDown, 'Mais recentes'),
     (LucideIcons.clockArrowUp, 'Menos recentes'),
   ];
-  // Long press shows the top bar that removes selected scores from this collection.
-  bool removing = false;
-  List<Score> shown = const [];
   void refresh() => setState(() {
     future = Store.instance.scores(
       collectionId: widget.collection.id,
@@ -1227,11 +1129,7 @@ class _ScoreListScreenState extends State<ScoreListScreen> {
     );
   });
   void selectionChanged() {
-    if (!mounted) return;
-    setState(() {
-      // Unselecting the last score closes the remove bar.
-      if (!shown.any((s) => selected.contains(s.id))) removing = false;
-    });
+    if (mounted) setState(() {});
   }
 
   @override
@@ -1249,19 +1147,9 @@ class _ScoreListScreenState extends State<ScoreListScreen> {
   }
 
   Future<void> importFiles() async {
-    final picked = await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['pdf'],
-    );
-    if (picked.isEmpty) return;
-    try {
-      for (final file in picked) {
-        await Store.instance.importPdf(file, widget.collection.id);
-      }
-    } catch (error) {
-      if (mounted) showError(context, 'Não foi possível importar', error);
+    if (await importPdfs(context, widget.collection.id) > 0 && mounted) {
+      refresh();
     }
-    if (mounted) refresh();
   }
 
   Future<void> rename(Score score) async {
@@ -1279,46 +1167,27 @@ class _ScoreListScreenState extends State<ScoreListScreen> {
   }
 
   Future<void> organize(Score score) async {
-    final all = await Store.instance.collections();
-    if (!mounted) return;
-    final chosen = score.collectionIds.toSet();
-    final saved = await showAppSheet<bool>(
+    final chosen = await pickCollections(
       context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheet) => AppSheet(
-          title: tr(context, 'Coleções'),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: all
-                .map(
-                  (collection) => CheckboxListTile(
-                    value: chosen.contains(collection.id),
-                    title: Text(collection.name),
-                    onChanged: (value) => setSheet(
-                      () => value == true
-                          ? chosen.add(collection.id)
-                          : chosen.remove(collection.id),
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(tr(context, 'Cancelar')),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(tr(context, 'Concluir')),
-            ),
-          ],
-        ),
-      ),
+      title: 'Coleções',
+      initial: score.collectionIds.toSet(),
     );
-    if (saved != true) return;
+    if (chosen == null) return;
     try {
       await Store.instance.setScoreCollections(score.id, chosen);
+      if (mounted) refresh();
+    } catch (error) {
+      if (mounted) showError(context, 'Não foi possível salvar', error);
+    }
+  }
+
+  /// Adds every selected score, from any collection, to the chosen collections.
+  Future<void> addSelectionToCollections() async {
+    final ids = selected;
+    final chosen = await pickCollections(context, title: 'Adicionar à coleção');
+    if (chosen == null || chosen.isEmpty) return;
+    try {
+      await Store.instance.addToCollections(ids, chosen);
       if (mounted) refresh();
     } catch (error) {
       if (mounted) showError(context, 'Não foi possível salvar', error);
@@ -1363,28 +1232,35 @@ class _ScoreListScreenState extends State<ScoreListScreen> {
 
   Future<void> removeScores(List<Score> scores) async {
     if (scores.isEmpty) return;
-    final confirmed = await confirmSheet(
-      context,
-      title: 'Remover da coleção?',
-      message:
-          '${scores.map((s) => '“${s.name}”').join(', ')}\n${tr(context, 'O PDF e as anotações são mantidos.')}',
-      action: 'Remover',
-    );
-    if (!confirmed || !mounted) return;
+    final ids = scores.map((s) => s.id).toSet();
+    final collectionId = widget.collection.id;
     try {
-      final ids = scores.map((s) => s.id).toSet();
-      await Store.instance.removeFromCollection(widget.collection.id, ids);
+      await Store.instance.removeFromCollection(collectionId, ids);
       widget.selection.replace(selected.difference(ids));
-      if (mounted) {
-        removing = false;
-        refresh();
-      }
+      if (!mounted) return;
+      refresh();
+      showUndo(
+        context,
+        tr(
+          context,
+          ids.length == 1
+              ? 'Partitura removida da coleção'
+              : 'Partituras removidas da coleção',
+        ),
+        () async {
+          try {
+            await Store.instance.addToCollections(ids, [collectionId]);
+            if (mounted) refresh();
+          } catch (error) {
+            if (mounted) showError(context, 'Não foi possível desfazer', error);
+          }
+        },
+      );
     } catch (error) {
       if (mounted) showError(context, 'Não foi possível remover', error);
     }
   }
 
-  void addFromLibrary() => Navigator.pop(context);
   void openSelected() => widget.onOpenSelection != null
       ? widget.onOpenSelection!()
       : openSelectedScores(context, widget.selection);
@@ -1411,20 +1287,17 @@ class _ScoreListScreenState extends State<ScoreListScreen> {
         MediaQuery.paddingOf(context).left -
         MediaQuery.paddingOf(context).right;
     final compact = width < 600 || MediaQuery.sizeOf(context).height < 500;
-    final gutter = compact ? 20.0 : 40.0;
-    return PopScope(
-      canPop: !removing,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) setState(() => removing = false);
-      },
-      child: Scaffold(
+    // Wide screens keep the list at most 840 px wide, centered.
+    final gutter = compact ? 20.0 : math.max(40.0, (width - 840) / 2);
+    // Selection mode: once anything is selected, a tap toggles instead of opening.
+    final selecting = selected.isNotEmpty || widget.onOpenSelection != null;
+    return Scaffold(
         body: SafeArea(
           child: DesignViewport(
             child: FutureBuilder<List<Score>>(
               future: future,
               builder: (context, snap) {
                 final scores = snap.data ?? const <Score>[];
-                shown = scores;
                 final picked = scores
                     .where((s) => selected.contains(s.id))
                     .toList();
@@ -1444,8 +1317,10 @@ class _ScoreListScreenState extends State<ScoreListScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                SizedBox(
-                                  height: 44,
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    minHeight: 44,
+                                  ),
                                   child: Row(
                                     mainAxisAlignment:
                                         MainAxisAlignment.spaceBetween,
@@ -1532,14 +1407,6 @@ class _ScoreListScreenState extends State<ScoreListScreen> {
                                   ],
                                 ),
                                 const SizedBox(height: 16),
-                                Text(
-                                  tr(
-                                    context,
-                                    'Toque para abrir, no círculo para selecionar. Segure para remover.',
-                                  ),
-                                  style: designText(13, c.tx2),
-                                ),
-                                const SizedBox(height: 8),
                               ],
                             ),
                           ),
@@ -1589,8 +1456,7 @@ class _ScoreListScreenState extends State<ScoreListScreen> {
                                   selected: selected.contains(score.id),
                                   onSelect: () => toggleSelection(score),
                                   onMenu: () => scoreActions(score),
-                                  onTap: removing ||
-                                          widget.onOpenSelection != null
+                                  onTap: selecting
                                       ? () => toggleSelection(score)
                                       : () => Navigator.push(
                                           context,
@@ -1601,41 +1467,31 @@ class _ScoreListScreenState extends State<ScoreListScreen> {
                                             ),
                                           ),
                                         ),
-                                  onLongPress: () {
-                                    if (!selected.contains(score.id))
-                                      toggleSelection(score);
-                                    setState(() => removing = true);
-                                  },
+                                  onLongPress: () => toggleSelection(score),
                                 );
                               }, childCount: scores.length),
                             ),
                           ),
                         SliverToBoxAdapter(
-                          child: SizedBox(height: selected.isEmpty ? 24 : 120),
+                          child: const SizedBox(height: 24),
                         ),
                       ],
                     ),
-                    if (removing)
+                    if (selected.isNotEmpty)
                       Positioned(
                         top: 0,
                         left: 0,
                         right: 0,
                         child: SelectionBar(
-                          count: picked.length,
-                          onClose: () => setState(() => removing = false),
-                          onDelete: () => removeScores(picked),
-                        ),
-                      ),
-                    if (selected.isNotEmpty && !removing)
-                      Positioned(
-                        left: compact ? 12 : 96,
-                        right: compact ? 12 : 96,
-                        bottom: compact ? 16 : 40,
-                        child: SelectionPill(
                           count: selected.length,
-                          onClear: widget.selection.clear,
+                          onClose: widget.selection.clear,
+                          onCollections: addSelectionToCollections,
+                          // Only scores of this collection can be removed from it.
+                          onDelete: picked.isEmpty
+                              ? null
+                              : () => removeScores(picked),
+                          deleteLabel: 'Remover da coleção',
                           onOpen: openSelected,
-                          onAdd: addFromLibrary,
                         ),
                       ),
                   ],
@@ -1644,7 +1500,6 @@ class _ScoreListScreenState extends State<ScoreListScreen> {
             ),
           ),
         ),
-      ),
     );
   }
 }
@@ -1707,6 +1562,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
   bool exporting = false;
   // Locked: tabs can't be closed and leaving asks for confirmation.
   bool locked = false;
+  // Stylus only: finger and palm touches don't draw.
+  bool penOnly = false;
+  static const strokeSizes = [0.6, 1.0, 1.8];
+  double strokeSize = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    Store.instance.preference('pen_only').then((value) {
+      if (mounted && value == '1') setState(() => penOnly = true);
+    });
+  }
 
   Future<void> leave({bool home = true}) async {
     if (locked &&
@@ -1731,14 +1598,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       }
       return true;
     } catch (error) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${tr(context, 'Falha ao salvar anotações')}: $error',
-            ),
-          ),
-        );
+      if (mounted) showError(context, 'Falha ao salvar anotações', error);
       return false;
     }
   }
@@ -1771,39 +1631,22 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Future<void> closeTab(int index) async {
     if (locked) return;
     final score = tabs[index];
-    final confirmed = await showAppSheet<bool>(
-      context,
-      builder: (ctx) => AppSheet(
-        title: tr(ctx, 'Fechar partitura?'),
-        child: Text(
-          '${score.name}\n${tr(ctx, 'As anotações serão mantidas.')}',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(tr(ctx, 'Cancelar')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(tr(ctx, 'Fechar')),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    if (!await flushAnnotations()) return;
-    if (!mounted) return;
+    if (tabs.length == 1) return leave(home: false);
+    if (!await flushAnnotations() || !mounted) return;
     final currentIndex = tabs.indexWhere((tab) => tab.id == score.id);
     if (currentIndex < 0) return;
-    if (tabs.length == 1) {
-      Navigator.pop(context);
-      return;
-    }
     setState(() {
       tabs.removeAt(currentIndex);
       pads.removeWhere((key, _) => key.startsWith('${score.id}:'));
       if (currentIndex < active) active--;
       if (active >= tabs.length) active = tabs.length - 1;
+    });
+    showUndo(context, tr(context, 'Partitura fechada'), () {
+      if (!mounted || tabs.any((tab) => tab.id == score.id)) return;
+      setState(() {
+        active = math.min(currentIndex, tabs.length);
+        tabs.insert(active, score);
+      });
     });
   }
 
@@ -1815,19 +1658,63 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (picked != null && mounted) setState(() => color = picked);
   }
 
-  Future<void> _undo() async {
+  /// The most recently edited page of the active tab that [usable] accepts.
+  _AnnotationPadState? _latestPage(bool Function(_AnnotationPadState) usable) {
     final pages =
         pads.entries
             .where((entry) => entry.key.startsWith('${tabs[active].id}:'))
             .map((entry) => entry.value.currentState)
             .whereType<_AnnotationPadState>()
+            .where(usable)
             .toList()
           ..sort(
             (a, b) => (b.lastEdited ?? DateTime(0)).compareTo(
               a.lastEdited ?? DateTime(0),
             ),
           );
-    if (pages.isNotEmpty) await pages.first.undo();
+    return pages.firstOrNull;
+  }
+
+  Future<void> _undo() async =>
+      _latestPage((page) => page.undoStack.isNotEmpty)?.undo();
+  Future<void> _redo() async =>
+      _latestPage((page) => page.redoStack.isNotEmpty)?.redo();
+
+  Future<void> _more(Score score) async {
+    final action = await showAppSheet<String>(
+      context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => AppSheet(
+          title: tr(ctx, 'Mais opções'),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                secondary: const Icon(LucideIcons.penTool),
+                title: Text(tr(ctx, 'Desenhar só com caneta stylus')),
+                subtitle: Text(
+                  tr(ctx, 'O toque do dedo e da mão não risca a partitura.'),
+                ),
+                value: penOnly,
+                onChanged: (value) {
+                  setState(() => penOnly = value);
+                  setSheet(() {});
+                  Store.instance.setPreference('pen_only', value ? '1' : '0');
+                },
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(LucideIcons.download),
+                title: Text(tr(ctx, 'Exportar PDF')),
+                onTap: () => Navigator.pop(ctx, 'export'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (action == 'export' && mounted) await _export(score);
   }
 
   Future<void> _export(Score score) async {
@@ -1864,6 +1751,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
           final points = (stroke['points'] as List)
               .cast<Map<String, dynamic>>();
           final argb = stroke['color'] as int;
+          final size = (stroke['size'] as num?) ?? 1;
           final color = img.ColorRgba8(
             (argb >> 16) & 255,
             (argb >> 8) & 255,
@@ -1875,7 +1763,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
               raster,
               x: ((points.first['x'] as num) * raster.width).round(),
               y: ((points.first['y'] as num) * raster.height).round(),
-              radius: stroke['tool'] == 'highlighter' ? 11 : 2,
+              radius: ((stroke['tool'] == 'highlighter' ? 11 : 2) * size)
+                  .round(),
               color: color,
             );
           for (var i = 1; i < points.length; i++) {
@@ -1886,7 +1775,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
               x2: ((points[i]['x'] as num) * raster.width).round(),
               y2: ((points[i]['y'] as num) * raster.height).round(),
               color: color,
-              thickness: stroke['tool'] == 'highlighter' ? 22 : 4,
+              thickness: (stroke['tool'] == 'highlighter' ? 22 : 4) * size,
             );
           }
         }
@@ -1908,12 +1797,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       await file.writeAsBytes(await exported.save(), flush: true);
       await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
     } catch (error) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${tr(context, 'Falha ao exportar')}: $error'),
-          ),
-        );
+      if (mounted) showError(context, 'Falha ao exportar', error);
     } finally {
       await document?.dispose();
       if (mounted) setState(() => exporting = false);
@@ -1929,8 +1813,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
         MediaQuery.paddingOf(context).left -
         MediaQuery.paddingOf(context).right;
     final compact = width < 600;
-    final toolbarWidth = math.min(640.0, width - 24);
-    final compactToolbar = toolbarWidth < 640;
+    final toolbarWidth = math.min(720.0, width - 24);
+    final compactToolbar = toolbarWidth < 700;
     final toolbarHeight = compactToolbar ? 108.0 : 64.0;
     final headerHeight = 56 + toolbarHeight + 1;
     const handleHeight = 24.0;
@@ -1956,6 +1840,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   key: ValueKey(score.id),
                   params: PdfViewerParams(
                     margin: 0,
+                    sizeDelegateProvider: const PdfViewerSizeDelegateProviderLegacy(
+                      calculateInitialZoom: _fitWholePage,
+                    ),
                     panEnabled: tool == 'navigate',
                     scaleEnabled: tool == 'navigate',
                     underflowAnchor: PdfPageAnchor.top,
@@ -1977,6 +1864,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           page: page.pageNumber,
                           tool: tool,
                           color: color,
+                          size: strokeSize,
+                          penOnly: penOnly,
                         ),
                       ];
                     },
@@ -2056,7 +1945,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                               icon: LucideIcons.x,
                                               label: tr(context, 'Fechar aba'),
                                               onPressed: () => closeTab(i),
-                                              extent: compact ? 44 : 28,
+                                              extent: 44,
                                               radius: 8,
                                               size: 14,
                                               color: active == i ? c.tx : c.tx2,
@@ -2112,7 +2001,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           onColor: (value) => setState(() => color = value),
                           onCustom: _customColor,
                           onUndo: _undo,
-                          onExport: () => _export(score),
+                          onRedo: _redo,
+                          size: strokeSize,
+                          onSize: () => setState(
+                            () => strokeSize = strokeSizes[
+                                (strokeSizes.indexOf(strokeSize) + 1) %
+                                    strokeSizes.length],
+                          ),
+                          onMore: () => _more(score),
                           exporting: exporting,
                         ),
                       ),
@@ -2157,6 +2053,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 }
 
+double? _fitWholePage(
+  PdfDocument document,
+  PdfViewerController controller,
+  double fitZoom,
+  double coverZoom,
+) => fitZoom;
+
 class AnnotationPad extends StatefulWidget {
   const AnnotationPad({
     super.key,
@@ -2164,11 +2067,15 @@ class AnnotationPad extends StatefulWidget {
     required this.page,
     required this.tool,
     required this.color,
+    this.size = 1,
+    this.penOnly = false,
   });
   final int scoreId;
   final int page;
   final String tool;
   final Color color;
+  final double size;
+  final bool penOnly;
 
   @override
   State<AnnotationPad> createState() => _AnnotationPadState();
@@ -2177,6 +2084,8 @@ class AnnotationPad extends StatefulWidget {
 class _AnnotationPadState extends State<AnnotationPad> {
   List<Map<String, dynamic>> strokes = [];
   List<List<Map<String, dynamic>>> undoStack = [];
+  // Redo lives only in memory; the undo history is what gets saved.
+  List<List<Map<String, dynamic>>> redoStack = [];
   Map<String, dynamic>? current;
   DateTime? lastEdited;
   bool ready = false;
@@ -2208,14 +2117,7 @@ class _AnnotationPadState extends State<AnnotationPad> {
           ready = true;
         });
     } catch (error) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${tr(context, 'Falha ao carregar anotações')}: $error',
-            ),
-          ),
-        );
+      if (mounted) showError(context, 'Falha ao carregar anotações', error);
     }
   }
 
@@ -2224,6 +2126,7 @@ class _AnnotationPadState extends State<AnnotationPad> {
         (stroke) => {
           'tool': stroke['tool'],
           'color': stroke['color'],
+          if (stroke['size'] != null) 'size': stroke['size'],
           'points': (stroke['points'] as List)
               .map((point) => Map<String, dynamic>.from(point as Map))
               .toList(),
@@ -2238,12 +2141,14 @@ class _AnnotationPadState extends State<AnnotationPad> {
 
   void _start(Offset position, Size size) {
     undoStack.add(_copyStrokes());
+    redoStack.clear();
     if (widget.tool == 'eraser') {
       _erase(position, size);
     } else {
       current = {
         'tool': widget.tool,
         'color': widget.color.toARGB32(),
+        'size': widget.size,
         'points': [_point(position, size)],
       };
       setState(() {});
@@ -2310,14 +2215,7 @@ class _AnnotationPadState extends State<AnnotationPad> {
     try {
       await pendingSave;
     } catch (error) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${tr(context, 'Falha ao salvar anotações')}: $error',
-            ),
-          ),
-        );
+      if (mounted) showError(context, 'Falha ao salvar anotações', error);
     }
   }
 
@@ -2331,7 +2229,15 @@ class _AnnotationPadState extends State<AnnotationPad> {
 
   Future<void> undo() async {
     if (undoStack.isEmpty) return;
+    redoStack.add(_copyStrokes());
     setState(() => strokes = undoStack.removeLast());
+    await _commit();
+  }
+
+  Future<void> redo() async {
+    if (redoStack.isEmpty) return;
+    undoStack.add(_copyStrokes());
+    setState(() => strokes = redoStack.removeLast());
     await _commit();
   }
 
@@ -2342,6 +2248,7 @@ class _AnnotationPadState extends State<AnnotationPad> {
       behavior: HitTestBehavior.opaque,
       onPointerDown: (event) {
         if (pointer != null || event.buttons != kPrimaryButton) return;
+        if (widget.penOnly && event.kind == PointerDeviceKind.touch) return;
         pointer = event.pointer;
         _start(event.localPosition, context.size!);
       },
@@ -2380,7 +2287,8 @@ class _StrokePainter extends CustomPainter {
       final paint = Paint()
         ..color = Color(stroke['color'] as int)
             .withValues(alpha: highlight ? .32 : 1)
-        ..strokeWidth = highlight ? 18 : 3
+        ..strokeWidth =
+            (highlight ? 18 : 3) * ((stroke['size'] as num?) ?? 1).toDouble()
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round
         ..style = PaintingStyle.stroke;

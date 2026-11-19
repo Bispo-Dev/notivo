@@ -4,7 +4,7 @@ App Flutter offline: importa PDFs para o armazenamento privado, organiza partitu
 
 ## Referências visuais
 
-As oito telas de `docs/notivo-telas.html` definem a composição de referência de 834 × 1194. `lib/design.dart` preserva essas medidas no tablet e adapta os componentes ao espaço disponível no celular, sem diminuir a interface inteira. Os controles do leitor mantêm alvos de 44 px; sua barra usa duas linhas quando necessário. A lista rola junto com o cabeçalho para comportar o teclado e telas baixas. A pasta `docs/notivo-manual-de-marca/` é a fonte oficial da identidade. `lib/brand.dart` usa os traçados dos SVGs do símbolo e da logo horizontal, incluindo as letras em curvas vetoriais. O ícone Android é gerado do SVG principal com o transform óptico e o raio originais.
+A composição de referência é a de um tablet em retrato, 834 × 1194. `lib/design.dart` preserva essas medidas no tablet e adapta os componentes ao espaço disponível no celular, sem diminuir a interface inteira. Os controles do leitor mantêm alvos de 44 px; sua barra usa duas linhas quando necessário. A lista rola junto com o cabeçalho para comportar o teclado e telas baixas. A pasta `docs/notivo-manual-de-marca/` é a fonte oficial da identidade. `lib/brand.dart` usa os traçados dos SVGs do símbolo e da logo horizontal, incluindo as letras em curvas vetoriais. O ícone Android é gerado do SVG principal com o transform óptico e o raio originais.
 
 Para regenerar os recursos Android a partir do ícone oficial: `node app/tool/generate_android_icon.mjs` (na raiz). Para conferir que os traçados Flutter e Android são os SVGs oficiais: `node app/tool/check_brand_sources.mjs`.
 
@@ -14,7 +14,7 @@ Para regenerar os recursos Android a partir do ícone oficial: `node app/tool/ge
 
 As ações das coleções ficam no botão de três pontos; manter cards pressionados abre a barra superior para remover vários. Remover uma coleção apaga apenas seus vínculos; PDFs e anotações continuam disponíveis em “Ver partituras” quando a biblioteca está vazia. Coleções removidas não são recriadas ao reiniciar.
 
-A seleção de partituras é compartilhada entre a biblioteca e todas as coleções. A barra inferior permanece ao voltar e entrar em outra coleção, soma partituras distintas e abre o conjunto em abas. Todos os diálogos internos, inclusive cor, renomeação, organização e confirmação de remoção, usam bottom sheets com conteúdo rolável e ações acima do teclado.
+A seleção de partituras é compartilhada entre a biblioteca e todas as coleções. Dentro de uma coleção, segurar uma partitura (ou tocar no círculo) entra no modo de seleção: toques passam a marcar, e a barra superior oferece adicionar à coleção, remover desta coleção e abrir em abas. Ao voltar para a biblioteca, a barra inferior mantém o conjunto para somar partituras de outras coleções. Remover da coleção e fechar uma aba não pedem confirmação: o aviso na parte de baixo oferece “Desfazer”. Todos os diálogos internos usam bottom sheets com conteúdo rolável e ações acima do teclado.
 
 Com a instalação local já preparada, execute na raiz em um PowerShell com permissão para iniciar processos:
 
@@ -53,5 +53,14 @@ cd app
 
 O setup local baixa Flutter, Temurin JDK e Android command-line tools dos distribuidores oficiais e valida SHA-256 antes de extrair (`.setup-toolchain.mjs`). O ADB fica em Platform-Tools, baixado de Google e validado pelo checksum do repositório Android (`.setup-platform-tools.mjs`). Aceite as licenças que o SDK solicitar no terminal. Para instalar no telefone, habilite Opções do desenvolvedor e Depuração USB e aceite o aviso RSA no aparelho; `adb devices` deve mostrar `device` (e não `unauthorized`). Se não aparecer, instale o driver USB do fabricante.
 
-O APK debug é para sideload/desenvolvimento; publicação em loja requer assinatura própria. A exportação atual rasteriza cada página em até 144 dpi e achata as anotações; os traços salvos no app continuam editáveis nele.
+O APK debug é para sideload/desenvolvimento.
+
+## Publicar na Play Store
+
+1. Gere a chave de upload uma única vez e guarde-a fora do repositório, com backup: `keytool -genkey -v -keystore notivo-upload.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload`.
+2. Crie `app/android/key.properties` (ignorado pelo git) com `storeFile` (caminho do `.jks`, relativo a `app/android/app`), `storePassword`, `keyAlias` e `keyPassword`. Sem esse arquivo, o build de release usa a chave de debug, que a Play Store recusa.
+3. Aumente `version` em `pubspec.yaml` a cada envio (o número depois do `+` é o `versionCode`).
+4. Gere o pacote: `flutter build appbundle` → `build/app/outputs/bundle/release/app-release.aab`.
+
+O app não pede permissões, não usa internet e não coleta dados: no formulário de Segurança dos dados, declare que nenhum dado é coletado ou compartilhado. A Play Store ainda exige um link de política de privacidade. Inclua capturas de celular e de tablet de 7" e 10"; o layout se adapta a ambos, em retrato e paisagem. A exportação atual rasteriza cada página em até 144 dpi e achata as anotações; os traços salvos no app continuam editáveis nele.
 

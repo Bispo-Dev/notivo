@@ -47,9 +47,6 @@ const collectionIcons = <String, IconData>{
   'moon': LucideIcons.moon,
 };
 
-/// Columns of the icon grid.
-const collectionIconColumns = 6;
-
 const _palette = [
   Colors.white,
   Color(0xff000000),
@@ -224,8 +221,9 @@ class _CollectionEditorState extends State<CollectionEditor> {
             style: designText(14, c.tx2, weight: FontWeight.w500),
           ),
           const SizedBox(height: 8),
-          GridView.count(
-            crossAxisCount: collectionIconColumns,
+          // Tiles keep a similar size on phones and tablets.
+          GridView.extent(
+            maxCrossAxisExtent: 64,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             mainAxisSpacing: 8,

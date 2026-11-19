@@ -23,7 +23,6 @@ App Android offline para organizar, ler e anotar partituras em PDF.</p>
 - **Anotações por página** com caneta, grifador e borracha, salvas automaticamente
 - **Bloqueio do leitor** para tocar sem fechar abas ou sair sem querer
 - **Exportação** do PDF anotado; o arquivo original nunca é alterado
-- **Backup** em arquivo `.json`, com anotações opcionais, para levar a biblioteca a outro aparelho
 - Tema **claro e escuro**, em **português e inglês**, sem conta e sem internet
 
 ## Como rodar

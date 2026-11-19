@@ -22,7 +22,16 @@ Future<T?> showAppSheet<T>(
     ),
     builder: (context) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: SafeArea(top: false, child: builder(context)),
+      // At most half the screen, drag handle included; longer content scrolls.
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: math.max(
+            0,
+            MediaQuery.sizeOf(context).height / 2 - kMinInteractiveDimension,
+          ),
+        ),
+        child: SafeArea(top: false, child: builder(context)),
+      ),
     ),
   );
 }

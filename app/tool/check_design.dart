@@ -95,7 +95,10 @@ GestureDetector pickerGesture(String label) {
   return descendants(scope)
       .map((element) => element.widget)
       .whereType<GestureDetector>()
-      .firstWhere((widget) => widget.onPanDown != null);
+      .firstWhere(
+        (widget) =>
+            widget.onPanDown != null || widget.onVerticalDragDown != null,
+      );
 }
 
 Future<void> expectHex(String expected) async {
@@ -230,8 +233,8 @@ Future<void> main() async {
         'PASS $name: card ${card.size}, native proportions, no layout overflow.',
       );
     }
-    final toolbarWidth = size.width - 24 < 640 ? size.width - 24 : 640.0;
-    final toolbarHeight = toolbarWidth < 640 ? 108.0 : 64.0;
+    final toolbarWidth = size.width - 24 < 720 ? size.width - 24 : 720.0;
+    final toolbarHeight = toolbarWidth < 700 ? 108.0 : 64.0;
     final toolbarKey = GlobalKey();
     final toolbar = await render(
       'toolbar-${size.width.toInt()}',
@@ -259,7 +262,9 @@ Future<void> main() async {
               onColor: (_) {},
               onCustom: () {},
               onUndo: () {},
-              onExport: () {},
+              onRedo: () {},
+              onSize: () {},
+              onMore: () {},
             ),
           ),
           Positioned(
@@ -270,7 +275,6 @@ Future<void> main() async {
               count: 2,
               onClear: () {},
               onOpen: () {},
-              onAdd: () {},
             ),
           ),
         ],
@@ -302,12 +306,12 @@ Future<void> main() async {
     await capture(picker, 'picker-${size.width.toInt()}');
     if (size.width == 320) {
       pickerGesture('Campo de saturação e brilho')
-          .onPanDown!(DragDownDetails(localPosition: Offset(-100, -100)));
+          .onVerticalDragDown!(DragDownDetails(localPosition: Offset(-100, -100)));
       await expectHex('#FFFFFF');
       pickerGesture('Faixa de matiz')
           .onPanDown!(DragDownDetails(localPosition: Offset(10000, 22)));
       pickerGesture('Campo de saturação e brilho')
-          .onPanDown!(DragDownDetails(localPosition: Offset(10000, -100)));
+          .onVerticalDragDown!(DragDownDetails(localPosition: Offset(10000, -100)));
       await expectHex('#FF0000');
       final hueScope = descendants(WidgetsBinding.instance.rootElement!)
           .firstWhere(
@@ -322,7 +326,7 @@ Future<void> main() async {
       );
       await expectHex('#00FF00');
       pickerGesture('Campo de saturação e brilho')
-          .onPanDown!(DragDownDetails(localPosition: Offset(10000, 10000)));
+          .onVerticalDragDown!(DragDownDetails(localPosition: Offset(10000, 10000)));
       await expectHex('#000000');
       print('PASS HSV interaction: white/red/green/black and drag bounds.');
     }
