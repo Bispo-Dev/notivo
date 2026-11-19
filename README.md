@@ -20,10 +20,21 @@ App Android offline para organizar, ler e anotar partituras em PDF.</p>
 - **Busca** que ignora maiúsculas, acentos e cedilha
 - **Ordenação** por nome/número (crescente e decrescente) e por data de importação
 - **Leitura em abas** com partituras de várias coleções ao mesmo tempo
+- **Modo páginas** (uma por vez, virando com toque nas bordas) ou **modo contínuo** (uma embaixo da outra, rolando)
+- **Pedal Bluetooth** para virar páginas nos dois modos
 - **Anotações por página** com caneta, grifador e borracha, salvas automaticamente
 - **Modo palco** em tela cheia, sem riscos ou abas fechadas sem querer
 - **Exportação** do PDF anotado; o arquivo original nunca é alterado
+- **Backup** de coleções, partituras e anotações num único `.zip`
+- **Abrir com / Compartilhar** PDFs vindos de WhatsApp, Drive ou e-mail
 - Tema **claro e escuro**, em **português e inglês**, sem conta e sem internet
+
+## Download
+
+Baixe o APK mais recente em [Releases](https://github.com/Bispo-Dev/notivo/releases/latest) (Android 7 ou superior):
+
+- `notivo.apk`: praticamente todo celular e tablet atual (arm64).
+- `notivo-32bits.apk`: só para celulares Android 32 bits antigos, quando o `notivo.apk` der "app incompatível".
 
 ## Como rodar
 
@@ -41,7 +52,8 @@ Os detalhes do ambiente local, da instalação no aparelho e das checagens de de
 
 ```
 app/       app Flutter: código (lib/), Android, fontes, testes, docs/ e o script de instalação
-site/      página de download do APK (HTML estático, mobile first)
+site/      página de download do APK (HTML estático, mobile first), publicada pelo Cloudflare Workers
+wrangler.jsonc  configuração que serve site/ como assets estáticos
 ```
 
 ## Documentação

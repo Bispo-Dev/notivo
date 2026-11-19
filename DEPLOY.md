@@ -45,7 +45,7 @@ O site sempre aponta para `releases/latest/download/notivo.apk`, então publicar
    git push origin main --tags
    ```
 
-7. **Release.** No GitHub: *Releases* › *Draft a new release* › tag `v1.1.0`, título `Notivo 1.1.0`, as novidades em poucas linhas, e anexe os quatro arquivos de `app\build\release\` (`notivo.apk`, `notivo-32bits.apk` e os dois `.sha256`). Os nomes precisam ser exatamente esses. Publique como *Latest release*.
+7. **Release.** No GitHub: *Releases* › *Draft a new release* › tag `v1.1.0`, título `Notivo 1.1.0`, as novidades escritas para quem usa o app (use a [release v1.0.1](https://github.com/Bispo-Dev/notivo/releases/tag/v1.0.1) como modelo: novidades, como atualizar por cima e o link do APK 32 bits), e anexe os quatro arquivos de `app\build\release\` (`notivo.apk`, `notivo-32bits.apk` e os dois `.sha256`). Os nomes precisam ser exatamente esses. Publique como *Latest release*.
    Com o GitHub CLI instalado, o mesmo passo é:
 
    ```powershell
