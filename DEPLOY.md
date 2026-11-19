@@ -4,7 +4,7 @@ O Notivo é publicado em duas partes, ambas gratuitas:
 
 | Parte | Onde | Endereço |
 |-------|------|----------|
-| Página de download (`site/`) | Cloudflare Workers | `https://notivo.<conta>.workers.dev` (ou domínio próprio) |
+| Página de download (`site/`) | Cloudflare Workers | `https://notivo.bispo.dev.br` |
 | APK | GitHub Releases | `https://github.com/Bispo-Dev/notivo/releases/latest/download/notivo.apk` |
 
 O site sempre aponta para `releases/latest/download/notivo.apk`, então publicar uma versão nova não exige mexer no site, exceto no número da versão exibido.

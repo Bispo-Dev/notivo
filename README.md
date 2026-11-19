@@ -31,7 +31,7 @@ App Android offline para organizar, ler e anotar partituras em PDF.</p>
 
 ## Download
 
-Baixe o APK mais recente em [Releases](https://github.com/Bispo-Dev/notivo/releases/latest) (Android 7 ou superior):
+Pelo site **[notivo.bispo.dev.br](https://notivo.bispo.dev.br/)**, ou direto em [Releases](https://github.com/Bispo-Dev/notivo/releases/latest) (Android 7 ou superior):
 
 - `notivo.apk`: praticamente todo celular e tablet atual (arm64).
 - `notivo-32bits.apk`: só para celulares Android 32 bits antigos, quando o `notivo.apk` der "app incompatível".
@@ -52,7 +52,7 @@ Os detalhes do ambiente local, da instalação no aparelho e das checagens de de
 
 ```
 app/       app Flutter: código (lib/), Android, fontes, testes, docs/ e o script de instalação
-site/      página de download do APK (HTML estático, mobile first), publicada pelo Cloudflare Workers
+site/      página de download do APK (HTML estático, mobile first), no ar em https://notivo.bispo.dev.br/ pelo Cloudflare Workers
 wrangler.jsonc  configuração que serve site/ como assets estáticos
 ```
 
