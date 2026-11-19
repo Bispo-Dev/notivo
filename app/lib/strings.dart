@@ -23,8 +23,6 @@ const _englishStrings = <String, String>{
   'selecionadas': 'selected',
   'sel.': 'sel.',
   'Renomear': 'Rename',
-  'Adicionar partituras de outras coleções':
-      'Add scores from other collections',
   'Limpar': 'Clear',
   'Abrir em abas': 'Open in tabs',
 
@@ -91,37 +89,25 @@ const _englishStrings = <String, String>{
   'Manter pressionado para alternar tema': 'Long press to switch theme',
   'Não foi possível abrir a biblioteca.': 'Could not open the library.',
   'Não foi possível abrir as partituras.': 'Could not open the scores.',
-  'Não foi possível importar:': 'Could not import:',
-  'Não foi possível remover a coleção:': 'Could not delete the collection:',
-  'Falha ao exportar:': 'Export failed:',
   'Não foi possível importar': 'Could not import',
   'Não foi possível remover a coleção': 'Could not delete the collection',
   'Falha ao exportar': 'Export failed',
-  'Fechar partitura?': 'Close score?',
-  'Fechar': 'Close',
   'As partituras e anotações serão mantidas.':
       'Scores and annotations will be kept.',
-  'Abra uma coleção para selecionar mais partituras.':
-      'Open a collection to select more scores.',
   'Falha ao salvar anotações': 'Failed to save annotations',
   'Falha ao carregar anotações': 'Failed to load annotations',
   'Recolher abas e ferramentas': 'Collapse tabs and tools',
-  'As anotações serão mantidas.': 'Your annotations will be kept.',
 
-  // Collection editor, selection, lock and backup.
+  // Collection editor, selection and lock.
   'Selecionar': 'Select',
   'Ações da partitura': 'Score actions',
   'Remover': 'Remove',
-  'Toque para abrir, no círculo para selecionar. Segure para remover.':
-      'Tap to open, tap the circle to select. Press and hold to remove.',
   'Ordenar': 'Sort',
   'Mais recentes': 'Most recent',
   'Nome / número crescente': 'Name / number ascending',
   'Nome / número decrescente': 'Name / number descending',
   'Menos recentes': 'Oldest',
   'Remover da coleção': 'Remove from collection',
-  'Remover da coleção?': 'Remove from collection?',
-  'O PDF e as anotações são mantidos.': 'The PDF and annotations are kept.',
   'Não foi possível renomear': 'Could not rename',
   'Não foi possível salvar': 'Could not save',
   'Não foi possível remover': 'Could not remove',
@@ -134,17 +120,22 @@ const _englishStrings = <String, String>{
   'Sair': 'Leave',
   'Bloquear partituras': 'Lock scores',
   'Desbloquear partituras': 'Unlock scores',
-  'Backup': 'Backup',
-  'Salvar backup': 'Save backup',
-  'Restaurar backup': 'Restore backup',
-  'Escolha o arquivo. Itens com o mesmo nome não são duplicados.':
-      'Choose the file. Items with the same name are not duplicated.',
-  'Coleções e partituras com os nomes atuais.': 'Collections and scores with their current names.',
-  'Incluir anotações': 'Include annotations',
-  'Salvar': 'Save',
-  'Backup restaurado': 'Backup restored',
-  'Falha ao salvar backup': 'Failed to save backup',
-  'Falha ao restaurar': 'Restore failed',
+
+  // Import, undo, selection actions and reader options.
+  'Importar para': 'Import into',
+  'partitura importada': 'score imported',
+  'partituras importadas': 'scores imported',
+  'Partitura fechada': 'Score closed',
+  'Partitura removida da coleção': 'Score removed from collection',
+  'Partituras removidas da coleção': 'Scores removed from collection',
+  'Não foi possível desfazer': 'Could not undo',
+  'Adicionar à coleção': 'Add to collection',
+  'Refazer': 'Redo',
+  'Espessura do traço': 'Stroke thickness',
+  'Mais opções': 'More options',
+  'Desenhar só com caneta stylus': 'Draw with stylus only',
+  'O toque do dedo e da mão não risca a partitura.':
+      "Finger and palm touches won't draw on the score.",
 
   // Settings.
   'Menu': 'Menu',

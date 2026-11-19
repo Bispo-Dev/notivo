@@ -14,3 +14,8 @@ app/android/app/build/
 app/android/app/.cxx/
 app/android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
 *.iml
+
+# Release signing (never commit)
+app/android/key.properties
+*.jks
+*.keystore

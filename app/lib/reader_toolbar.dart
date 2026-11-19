@@ -14,7 +14,10 @@ class ReaderToolbar extends StatelessWidget {
     required this.onColor,
     required this.onCustom,
     required this.onUndo,
-    required this.onExport,
+    required this.onRedo,
+    required this.onSize,
+    required this.onMore,
+    this.size = 1,
     this.exporting = false,
   });
   final String tool;
@@ -22,14 +25,16 @@ class ReaderToolbar extends StatelessWidget {
   final List<Color> colors;
   final ValueChanged<String> onTool;
   final ValueChanged<Color> onColor;
-  final VoidCallback onCustom, onUndo, onExport;
+  final VoidCallback onCustom, onUndo, onRedo, onSize, onMore;
+  // Stroke width multiplier, shown as a dot that grows with it.
+  final double size;
   final bool exporting;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, bounds) {
       final c = NotivoColors(context);
-      final compact = bounds.maxWidth < 640;
+      final compact = bounds.maxWidth < 700;
       final tools = [
         for (final entry in [
           ('navigate', LucideIcons.hand, 'Navegar'),
@@ -51,6 +56,11 @@ class ReaderToolbar extends StatelessWidget {
           label: tr(context, 'Desfazer'),
           onPressed: onUndo,
         ),
+        DesignIcon(
+          icon: LucideIcons.redo2,
+          label: tr(context, 'Refazer'),
+          onPressed: onRedo,
+        ),
         exporting
             ? const SizedBox.square(
                 dimension: 44,
@@ -62,9 +72,9 @@ class ReaderToolbar extends StatelessWidget {
                 ),
               )
             : DesignIcon(
-                icon: LucideIcons.download,
-                label: tr(context, 'Exportar PDF'),
-                onPressed: onExport,
+                icon: LucideIcons.ellipsis,
+                label: tr(context, 'Mais opções'),
+                onPressed: onMore,
               ),
       ];
       Widget swatch(Color? value) {
@@ -74,7 +84,6 @@ class ReaderToolbar extends StatelessWidget {
           selected: value == null ? !colors.contains(color) : color == value,
           onTap: select,
         );
-        if (!compact) return visual;
         return Semantics(
           button: true,
           label: tr(
@@ -92,10 +101,41 @@ class ReaderToolbar extends StatelessWidget {
         );
       }
 
+      final thickness = Tooltip(
+        message: tr(context, 'Espessura do traço'),
+        child: Semantics(
+          button: true,
+          label: tr(context, 'Espessura do traço'),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: onSize,
+              customBorder: const CircleBorder(),
+              child: SizedBox.square(
+                dimension: 44,
+                child: Center(
+                  child: Container(
+                    width: 2 + 8 * size,
+                    height: 2 + 8 * size,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: c.tx,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
       final palette = Row(
         mainAxisAlignment: MainAxisAlignment.center,
-        spacing: compact ? 2 : 10,
-        children: [for (final value in colors) swatch(value), swatch(null)],
+        spacing: 2,
+        children: [
+          for (final value in colors) swatch(value),
+          swatch(null),
+          thickness,
+        ],
       );
       Widget separator() => Container(
         width: 1,
@@ -105,20 +145,23 @@ class ReaderToolbar extends StatelessWidget {
       );
       return Padding(
           padding: EdgeInsets.symmetric(
-            horizontal: 10,
+            horizontal: compact ? 6 : 10,
             vertical: compact ? 8 : 0,
           ),
+          // shortcut: under ~344 px wide the rows scale down, so targets shrink below 44 px.
           child: compact
               ? Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      spacing: 2,
-                      children: [...tools, ...actions],
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        spacing: 2,
+                        children: [...tools, ...actions],
+                      ),
                     ),
                     const SizedBox(height: 4),
-                    palette,
+                    FittedBox(fit: BoxFit.scaleDown, child: palette),
                   ],
                 )
               : Row(

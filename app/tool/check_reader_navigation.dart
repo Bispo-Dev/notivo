@@ -114,8 +114,8 @@ Future<void> _pickAdditionalScore() async {
   );
   row.onSelect();
   await _settle();
-  final pill = _widgets().whereType<SelectionPill>().first;
-  pill.onOpen();
+  final bar = _widgets().whereType<SelectionBar>().first;
+  bar.onOpen!();
   await _settle();
 }
 
@@ -290,43 +290,33 @@ Future<void> main() async {
     'Confirming picker did not add a reader tab',
   );
 
+  // Closing is immediate; the snackbar's Undo brings the tab back.
   await _tapLastIcon('Fechar aba');
-  await _waitUntil(
-    () => _widgets().whereType<Text>().any(
-      (text) => text.data?.contains('Fechar partitura?') == true,
-    ),
-    'Close confirmation did not appear',
-  );
-  final cancelButton = _widgets().whereType<TextButton>().firstWhere(
-    (button) =>
-        button.child is Text && (button.child as Text).data == 'Cancelar',
-  );
-  cancelButton.onPressed!.call();
-  await _settle();
-  _expect(
-    _widgets().whereType<Text>().any(
-      (text) => text.data == 'Partitura adicionada',
-    ),
-    'Canceling close removed the tab',
-  );
-
-  await _tapLastIcon('Fechar aba');
-  await _waitUntil(
-    () => _widgets().whereType<FilledButton>().any(
-      (button) =>
-          button.child is Text && (button.child as Text).data == 'Fechar',
-    ),
-    'Close confirmation action did not appear',
-  );
-  final confirmButton = _widgets().whereType<FilledButton>().firstWhere(
-    (button) => button.child is Text && (button.child as Text).data == 'Fechar',
-  );
-  confirmButton.onPressed!.call();
   await _waitUntil(
     () => !_widgets().whereType<Text>().any(
       (text) => text.data == 'Partitura adicionada',
     ),
-    'Confirming close did not remove the extra tab',
+    'Closing did not remove the extra tab',
+  );
+  _widgets().whereType<SnackBarAction>().first.onPressed();
+  await _waitUntil(
+    () => _widgets().whereType<Text>().any(
+      (text) => text.data == 'Partitura adicionada',
+    ),
+    'Undo did not restore the closed tab',
+  );
+  ScaffoldMessenger.of(
+    _elements(WidgetsBinding.instance.rootElement!).firstWhere(
+      (element) => element.widget is Scaffold,
+    ),
+  ).hideCurrentSnackBar();
+  await _settle();
+  await _tapLastIcon('Fechar aba');
+  await _waitUntil(
+    () => !_widgets().whereType<Text>().any(
+      (text) => text.data == 'Partitura adicionada',
+    ),
+    'Closing again did not remove the extra tab',
   );
   _expect(
     _widgets().whereType<Text>().any(
@@ -379,6 +369,6 @@ Future<void> main() async {
   print(
     'PASS reader at 914x360 and 320x640: controls only at top; unified collapse/reveal; pen/navigation modes.',
   );
-  print('PASS collection picker cancel/accept and tab-close cancel/confirm.');
+  print('PASS collection picker cancel/accept and tab close with undo.');
   exit(0);
 }

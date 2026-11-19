@@ -54,8 +54,11 @@ class _ColorPickerSheetState extends State<ColorPickerSheet> {
         label: tr(context, 'Campo de saturação e brilho'),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onPanDown: (event) => _setSV(event.localPosition, size),
-          onPanUpdate: (event) => _setSV(event.localPosition, size),
+          // Axis drags (not pan) so the field wins over the sheet's vertical scroll.
+          onVerticalDragDown: (event) => _setSV(event.localPosition, size),
+          onVerticalDragUpdate: (event) => _setSV(event.localPosition, size),
+          onHorizontalDragDown: (event) => _setSV(event.localPosition, size),
+          onHorizontalDragUpdate: (event) => _setSV(event.localPosition, size),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(14),
             child: Stack(

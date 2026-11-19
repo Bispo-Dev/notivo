@@ -3,7 +3,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'strings.dart';
 
-/// Values transcribed from the eight artboards in docs/notivo-telas.html.
+/// Design tokens of the 834 × 1194 tablet reference layout.
 class NotivoColors {
   NotivoColors(BuildContext context)
     : dark = Theme.of(context).brightness == Brightness.dark;
@@ -128,11 +128,11 @@ class DesignButton extends StatelessWidget {
         onTap: onPressed,
         borderRadius: BorderRadius.circular(22),
         child: Container(
-          height: 44,
+          constraints: const BoxConstraints(minHeight: 44),
           padding: EdgeInsets.symmetric(
             horizontal: horizontal + (outlined ? 1 : 0),
           ),
-          alignment: Alignment.center,
+          // No alignment: it would stretch the button to the parent height.
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -158,6 +158,7 @@ class LibraryLayout extends StatelessWidget {
     required this.brand,
     required this.onCreate,
     required this.cards,
+    this.onImport,
     this.onBrowseAll,
     this.onMenu,
     this.picking = false,
@@ -166,6 +167,7 @@ class LibraryLayout extends StatelessWidget {
   final Widget brand;
   final VoidCallback onCreate;
   final List<Widget> cards;
+  final VoidCallback? onImport;
   final VoidCallback? onBrowseAll;
   final VoidCallback? onMenu;
   final bool picking;
@@ -181,8 +183,8 @@ class LibraryLayout extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            height: 44,
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 44),
             child: Row(
               children: [
                 if (onMenu != null) ...[
@@ -202,7 +204,7 @@ class LibraryLayout extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                if (size.width < 420)
+                if (size.width < (onImport == null ? 420 : 600))
                   DecoratedBox(
                     decoration: BoxDecoration(
                       border: Border.all(color: c.outline),
@@ -220,20 +222,38 @@ class LibraryLayout extends StatelessWidget {
                     icon: LucideIcons.plus,
                     outlined: true,
                   ),
+                if (onImport != null) ...[
+                  const SizedBox(width: 8),
+                  if (size.width < 600)
+                    DesignIcon(
+                      label: 'Importar PDFs',
+                      icon: LucideIcons.fileUp,
+                      onPressed: onImport,
+                      color: Theme.of(context).colorScheme.onPrimary,
+                      background: c.accent,
+                      radius: 22,
+                    )
+                  else
+                    DesignButton(
+                      label: 'Importar PDFs',
+                      onPressed: onImport!,
+                      icon: LucideIcons.fileUp,
+                      fill: c.accent,
+                      color: Theme.of(context).colorScheme.onPrimary,
+                      weight: FontWeight.w600,
+                    ),
+                ],
               ],
             ),
           ),
           const SizedBox(height: 14),
-          SizedBox(
-            height: 23.8,
-            child: Text(
-              tr(context, 'Suas partituras, sempre à mão.'),
-              style: designText(
-                17,
-                c.tx2,
-                height: 1.4,
-                family: 'Source Serif 4',
-              ),
+          Text(
+            tr(context, 'Suas partituras, sempre à mão.'),
+            style: designText(
+              17,
+              c.tx2,
+              height: 1.4,
+              family: 'Source Serif 4',
             ),
           ),
           SizedBox(height: compact ? 32 : 56),
@@ -412,8 +432,8 @@ class ScoreRow extends StatelessWidget {
         onTap: onTap,
         onLongPress: onLongPress,
         child: Container(
-          height: 72,
-          padding: const EdgeInsets.only(left: 2, right: 4),
+          constraints: const BoxConstraints(minHeight: 72),
+          padding: const EdgeInsets.fromLTRB(2, 4, 4, 4),
           decoration: BoxDecoration(
             border: Border(
               bottom: BorderSide(
@@ -438,16 +458,16 @@ class ScoreRow extends StatelessWidget {
                   height: 26,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: selected ? const Color(0xff6d3bd2) : null,
+                    color: selected ? c.accent : null,
                     border: selected
                         ? null
                         : Border.all(color: c.outline, width: 1.5),
                   ),
                   child: selected
-                      ? const Icon(
+                      ? Icon(
                           LucideIcons.check,
                           size: 15,
-                          color: Colors.white,
+                          color: Theme.of(context).colorScheme.onPrimary,
                         )
                       : null,
                 ),
@@ -497,10 +517,9 @@ class SelectionPill extends StatelessWidget {
     required this.count,
     required this.onClear,
     required this.onOpen,
-    required this.onAdd,
   });
   final int count;
-  final VoidCallback onClear, onOpen, onAdd;
+  final VoidCallback onClear, onOpen;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, bounds) {
@@ -522,23 +541,13 @@ class SelectionPill extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: Tooltip(
-                message: tr(context, 'Adicionar partituras de outras coleções'),
-                child: InkWell(
-                  onTap: onAdd,
-                  child: Text(
-                    bounds.maxWidth < 360
-                        ? '$count ${tr(context, 'sel.')}'
-                        : '$count ${tr(context, 'selecionadas')}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: designText(
-                      16,
-                      Colors.white,
-                      weight: FontWeight.w500,
-                    ),
-                  ),
-                ),
+              child: Text(
+                bounds.maxWidth < 360
+                    ? '$count ${tr(context, 'sel.')}'
+                    : '$count ${tr(context, 'selecionadas')}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: designText(16, Colors.white, weight: FontWeight.w500),
               ),
             ),
             DesignButton(
@@ -624,7 +633,7 @@ class AnnotationSwatch extends StatelessWidget {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: const Color(0xff2e1a6b),
+                          color: NotivoColors(context).tx,
                           width: 2,
                         ),
                       ),
@@ -668,19 +677,25 @@ class DesignPill extends StatelessWidget {
   }
 }
 
-/// Top bar shown while items are picked by long press, to remove them.
+/// Top bar shown while items are selected, with the actions for them.
 class SelectionBar extends StatelessWidget {
   const SelectionBar({
     super.key,
     required this.count,
     required this.onClose,
     required this.onDelete,
+    this.deleteLabel = 'Remover',
+    this.onCollections,
+    this.onOpen,
   });
   final int count;
-  final VoidCallback onClose, onDelete;
+  final VoidCallback onClose;
+  final VoidCallback? onDelete, onCollections, onOpen;
+  final String deleteLabel;
   @override
   Widget build(BuildContext context) {
     final c = NotivoColors(context);
+    final narrow = MediaQuery.sizeOf(context).width < 420 && onOpen != null;
     return Container(
       height: 64,
       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -694,16 +709,37 @@ class SelectionBar extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              '$count ${tr(context, 'selecionadas')}',
+              narrow ? '$count' : '$count ${tr(context, 'selecionadas')}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: designText(18, c.tx, weight: FontWeight.w600),
             ),
           ),
+          if (onCollections != null)
+            DesignIcon(
+              icon: LucideIcons.folderPlus,
+              label: 'Adicionar à coleção',
+              onPressed: onCollections,
+            ),
           DesignIcon(
             icon: LucideIcons.trash2,
-            label: 'Remover',
-            onPressed: count == 0 ? null : onDelete,
-            color: Theme.of(context).colorScheme.error,
+            label: deleteLabel,
+            onPressed: onDelete,
+            color: onDelete == null
+                ? c.outline
+                : Theme.of(context).colorScheme.error,
           ),
+          if (onOpen != null) ...[
+            const SizedBox(width: 4),
+            DesignButton(
+              label: 'Abrir em abas',
+              onPressed: onOpen!,
+              horizontal: 14,
+              fill: c.accent,
+              color: Theme.of(context).colorScheme.onPrimary,
+              weight: FontWeight.w600,
+            ),
+          ],
         ],
       ),
     );
