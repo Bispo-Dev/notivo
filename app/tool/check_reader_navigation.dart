@@ -152,9 +152,9 @@ Future<void> main() async {
       case 'query':
         if (sql.contains('from collections')) {
           return {
-            'columns': ['id', 'name', 'color', 'icon', 'sort_order'],
+            'columns': ['id', 'name', 'color', 'icon', 'sort_order', 'icon_color'],
             'rows': [
-              <Object?>[1, 'Coleção de teste', '#6D3BD2', 'music', 0],
+              <Object?>[1, 'Coleção de teste', '#6D3BD2', 'music', 0, '#FFFFFF'],
             ],
           };
         }
@@ -335,8 +335,11 @@ Future<void> main() async {
     if (element.widget is! DesignIcon) continue;
     final box = element.findRenderObject()! as RenderBox;
     _expect(
-      box.localToGlobal(Offset.zero).dy + box.size.height <= 164,
-      'Reader placed a control below the top toolbar',
+      // On a real phone the status bar pushes everything down by its height.
+      box.localToGlobal(Offset.zero).dy + box.size.height <=
+          164 + view.padding.top / view.devicePixelRatio,
+      'Reader placed a control below the top toolbar: '
+      '${(element.widget as DesignIcon).label} at ${box.localToGlobal(Offset.zero)}',
     );
   }
   await _tapIcon('Caneta');
@@ -345,9 +348,11 @@ Future<void> main() async {
     'Drawing mode lets PDF pan underneath the stroke',
   );
   await _tapIcon('Navegar');
+  // Pages mode (the default) turns pages by tap or pedal, so the PDF does not pan
+  // there; scale stays off too. Free panning belongs to continuous mode.
   _expect(
-    _widgets().whereType<PdfViewer>().first.params.panEnabled,
-    'Navigate mode did not restore PDF panning',
+    !_widgets().whereType<PdfViewer>().first.params.scaleEnabled,
+    'Pages mode let the PDF zoom',
   );
   await _tapIcon('Recolher abas e ferramentas');
   _expect(

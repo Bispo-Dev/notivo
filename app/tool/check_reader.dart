@@ -343,20 +343,20 @@ Future<void> _checkAppSettings() async {
         _elements(WidgetsBinding.instance.rootElement!)
             .map((element) => element.widget)
             .whereType<DesignIcon>()
-            .any((icon) => icon.label == 'Menu'),
-    'Library menu did not appear',
+            .any((icon) => icon.label == 'Configurações'),
+    'Library settings button did not appear',
   );
   var menu = _elements(WidgetsBinding.instance.rootElement!)
       .map((element) => element.widget)
       .whereType<DesignIcon>()
-      .firstWhere((icon) => icon.label == 'Menu');
+      .firstWhere((icon) => icon.label == 'Configurações');
   menu.onPressed!();
   await _settle();
-  final darkToggle = _elements(WidgetsBinding.instance.rootElement!)
+  final themeChoice = _elements(WidgetsBinding.instance.rootElement!)
       .map((element) => element.widget)
-      .whereType<SwitchListTile>()
-      .firstWhere((tile) => tile.onChanged != null);
-  darkToggle.onChanged!(true);
+      .whereType<Segmented<ThemeMode>>()
+      .first;
+  themeChoice.onChanged(ThemeMode.dark);
   await _waitUntil(
     () => savedPreferences['theme'] == 'dark',
     'Dark mode preference was not persisted',
@@ -366,14 +366,14 @@ Future<void> _checkAppSettings() async {
   menu = _elements(WidgetsBinding.instance.rootElement!)
       .map((element) => element.widget)
       .whereType<DesignIcon>()
-      .firstWhere((icon) => icon.label == 'Menu');
+      .firstWhere((icon) => icon.label == 'Configurações');
   menu.onPressed!();
   await _settle();
-  final english = _elements(WidgetsBinding.instance.rootElement!)
+  final language = _elements(WidgetsBinding.instance.rootElement!)
       .map((element) => element.widget)
-      .whereType<RadioListTile<String>>()
-      .firstWhere((tile) => tile.value == 'en');
-  english.onChanged!('en');
+      .whereType<Segmented<String>>()
+      .first;
+  language.onChanged('en');
   await _waitUntil(
     () => savedPreferences['language'] == 'en',
     'English preference was not persisted',
